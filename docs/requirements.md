@@ -23,6 +23,8 @@ Implementation: [PaymentSessionController.java](../payments-app/src/main/java/la
 
 Evidence: [givenChangedPurchaseWhenCreationIsRetriedThenItsOriginalResultIsReplayed()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionComposeIntegrationTest.java)
 
+Additional replacement evidence: [shouldReplaceEntirePurchaseWhenCurrentVersionIsSupplied()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionHttpContractTest.java)
+
 ### REQ-SES-002 — Reject stale changes without new events
 
 Status: Verified
@@ -64,6 +66,26 @@ Acceptance: Given a completed creation followed by a purchase change, when the o
 Implementation: [CreatePaymentSessionService.java](../payments-app/src/main/java/lab/payments/payment_session/application/CreatePaymentSessionService.java)
 
 Evidence: [givenChangedPurchaseWhenCreationIsRetriedThenItsOriginalResultIsReplayed()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionComposeIntegrationTest.java)
+
+### REQ-IDEM-004 — Isolate completed command keys by merchant
+
+Status: Verified
+
+Acceptance: Given different merchants using the same creation key, when each retries, then each receives its own original session response.
+
+Implementation: [CreatePaymentSessionService.java](../payments-app/src/main/java/lab/payments/payment_session/application/CreatePaymentSessionService.java)
+
+Evidence: [shouldCreateIndependentSessionsAndReplayWhenMerchantsShareAKey()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionHttpContractTest.java)
+
+### REQ-IDEM-005 — Allow correction after rejected input or stale versions
+
+Status: Verified
+
+Acceptance: Given malformed JSON or a stale replacement, when corrected with the same key, then the valid command can complete. Rejected requests do not reserve a completed result.
+
+Implementation: [ChangePurchaseService.java](../payments-app/src/main/java/lab/payments/payment_session/application/ChangePurchaseService.java)
+
+Evidence: [shouldAllowCorrectionWhenMalformedJsonIsRetriedWithTheSameKey()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionHttpContractTest.java), [shouldAcceptCorrectedReplacementWhenKeyWasRejectedForStaleVersion()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionHttpContractTest.java)
 
 ### REQ-IDEM-002 — Reject changed content under the same key
 
@@ -164,6 +186,18 @@ Acceptance: Given a simulated operation submitted over HTTP, when its result is 
 Implementation: [SimulatorController.java](../downstream-simulator/src/main/java/lab/simulator/SimulatorController.java)
 
 Evidence: [givenTheExistingHttpContractWhenPostingAndLookingUpThenBothResolveTheSameOperation()](../downstream-simulator/src/test/java/lab/simulator/SimulatorComposeIntegrationTest.java)
+
+### REQ-API-002 — Validate HTTP inputs and return traceable application errors
+
+Status: Verified
+
+Acceptance: Given missing required headers or invalid amount, currency, merchant or idempotency inputs, when submitted through MVC, then the API returns 400. Application-generated errors include status, business code and a nonblank correlation identifier in a problem response. Unknown sessions return 404.
+
+Implementation: [HttpErrors.java](../common/src/main/java/lab/common/HttpErrors.java)
+
+Evidence: [shouldRejectRequestWhenRequiredHeaderIsMissing()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionHttpContractTest.java), [shouldRejectPurchaseWhenAmountIsInvalid()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionHttpContractTest.java), [shouldRejectPurchaseWhenCurrencyIsInvalid()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionHttpContractTest.java), [shouldRejectRequestWhenMerchantIsInvalid()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionHttpContractTest.java), [shouldRejectRequestWhenIdempotencyKeyIsInvalid()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionHttpContractTest.java), [shouldReturnProblemDetailsWhenApplicationRuleRejectsRequest()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionHttpContractTest.java)
+
+Additional session evidence: [shouldCreateSessionWithDefaultsWhenOnlyRequiredFieldsAreProvided()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionHttpContractTest.java), [shouldReturnNotFoundWhenReadingUnknownSession()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionHttpContractTest.java), [shouldReturnNotFoundWhenReplacingUnknownSession()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionHttpContractTest.java), [shouldPreserveOwnersPurchaseWhenAnotherMerchantAttemptsReplacement()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionHttpContractTest.java)
 
 ## Adopted engineering constraints
 

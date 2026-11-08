@@ -35,6 +35,8 @@ Follow the [parameter rules](docs/parameter-guidelines.md): prefer 0–2 paramet
 
 JUnit runs classes concurrently with two workers and methods sequentially. Each integration class must own its table and cleanup. Architecture checks enforce direct layer dependencies.
 
+HTTP contract tests use RestTestClient with the full Spring context and a real isolated DynamoDB table through Compose. Use request and response records for valid JSON bodies, typed invalid values for validation cases and raw text for malformed JSON. The MVC-backed contract suite complements live-server concurrency and persistence tests. Use Should ... When ... display names and Given/When/Then sections.
+
 Executable behavior tests are JUnit tests; Given/When/Then names or display names should explain the rule. A prose feature file alone does not prove a requirement.
 
 ```bash

@@ -12,6 +12,10 @@ Aggregate tests give fast feedback on domain decisions. Mapping tests protect bo
 
 Added HTTP coverage for stale replacements and merchant read isolation, phase comments, four ArchUnit boundary checks and concurrent test classes with sequential methods. Existing isolated tables and random ports support class concurrency. Small HTTP replacement setup is shared by scenarios. WireMock remains deferred until external application calls exist.
 
+## HTTP contract follow-up
+
+The RestTestClient suite uses the full Spring application through MVC and a real isolated DynamoDB table. Typed requests and responses cover defaults, complete replacement, validation, unknown sessions, cross-merchant replacement, scoped idempotency and correction after rejection. Malformed JSON is deliberately raw text. Problem responses are decoded into ProblemDetail and checked for status, code and correlation identity. Existing live-server and concurrent-request scenarios remain complementary evidence.
+
 ## Further improvements
 
 1. Add Given/When/Then sections and business display names to existing scenarios. Keep compatibility tests explicit about their storage contract.
