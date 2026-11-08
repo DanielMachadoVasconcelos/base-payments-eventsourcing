@@ -1,0 +1,14 @@
+<?xml version="1.0"?>
+<!DOCTYPE module PUBLIC
+    "-//Checkstyle//DTD Checkstyle Configuration 1.3//EN"
+    "https://checkstyle.org/dtds/configuration_1_3.dtd">
+<module name="Checker">
+    <module name="SuppressWarningsFilter"/>
+    <module name="TreeWalker">
+        <module name="SuppressWarningsHolder"/>
+        <module name="ParameterNumber">
+            <property name="max" value="3"/>
+            <property name="tokens" value="METHOD_DEF,CTOR_DEF"/>
+        </module>
+    </module>
+</module>

@@ -1,0 +1,29 @@
+name: base-payments-eventsourcing
+services:
+  dynamodb:
+    image: amazon/dynamodb-local:3.3.0
+    command: '-jar DynamoDBLocal.jar -sharedDb -dbPath /home/dynamodblocal/data -disableTelemetry'
+    user: root
+    ports: ['127.0.0.1:8000:8000']
+    volumes: ['dynamodb-data:/home/dynamodblocal/data']
+  simulator:
+    profiles: [full]
+    build:
+      context: .
+      args: { MODULE: downstream-simulator }
+    environment:
+      DYNAMODB_ENDPOINT: http://dynamodb:8000
+    ports: ['127.0.0.1:8081:8081']
+    depends_on: [dynamodb]
+  payments:
+    profiles: [full]
+    build:
+      context: .
+      args: { MODULE: payments-app }
+    environment:
+      DYNAMODB_ENDPOINT: http://dynamodb:8000
+      SIMULATOR_URL: http://simulator:8081
+    ports: ['127.0.0.1:8080:8080']
+    depends_on: [dynamodb, simulator]
+volumes:
+  dynamodb-data:

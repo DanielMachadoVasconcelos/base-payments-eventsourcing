@@ -1,0 +1,2 @@
+rootProject.name = 'base-payments-eventsourcing'
+include 'payments-app', 'downstream-simulator'

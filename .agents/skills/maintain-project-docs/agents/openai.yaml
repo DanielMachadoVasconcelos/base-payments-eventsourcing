@@ -1,0 +1,6 @@
+interface:
+  display_name: "Maintain Project Documentation"
+  short_description: "Keep requirements, design and project docs aligned"
+  default_prompt: "Use $maintain-project-docs to document this requirement and update the project's architecture and evidence."
+policy:
+  allow_implicit_invocation: true

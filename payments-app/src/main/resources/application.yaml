@@ -1,0 +1,36 @@
+server:
+  port: ${PORT:8080}
+spring:
+  application:
+    name: payments-lab
+  profiles:
+    default: local
+  threads:
+    virtual:
+      enabled: ${VIRTUAL_THREADS:true}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+lab:
+  endpoint: ${DYNAMODB_ENDPOINT:http://localhost:8000}
+  table: ${PAYMENTS_TABLE:payments_lab}
+  simulator-url: ${SIMULATOR_URL:http://localhost:8081}
+  workers-enabled: ${WORKERS_ENABLED:true}
+  synchronous-wait-ms: ${SYNC_WAIT_MS:3000}
+  lease-ms: ${LEASE_MS:30000}
+  heartbeat-ms: ${HEARTBEAT_MS:10000}
+  poll-ms: ${POLL_MS:1000}
+  max-attempts: 20
+  external-concurrency: 32
+  connect-timeout-ms: 1000
+  response-timeout-ms: 2000
+  authorization-ms: 3600000
+  issuer-confirmation-ms: 14400000
+  session-ms: 172800000
+  accepted-session-ms: 176400000
+  retention-ms: 86400000

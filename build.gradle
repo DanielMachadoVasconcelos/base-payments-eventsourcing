@@ -1,0 +1,82 @@
+plugins {
+    id 'org.springframework.boot' version '4.1.1' apply false
+    id 'com.diffplug.spotless' version '8.10.4'
+}
+spotless {
+    java {
+        target 'common/src/**/*.java', 'payments-app/src/**/*.java', 'downstream-simulator/src/**/*.java'
+        googleJavaFormat('1.36.1').aosp()
+        removeUnusedImports()
+        trimTrailingWhitespace()
+        endWithNewline()
+    }
+}
+allprojects {
+    group = 'lab.payments'
+    version = '1.0.0'
+    repositories { mavenCentral() }
+}
+tasks.register('composeUp', Exec) {
+    description = 'Starts test dependencies using the shared Docker Compose file'
+    group = 'verification'
+    workingDir rootProject.projectDir
+    commandLine 'docker', 'compose', 'up', '-d', 'dynamodb'
+}
+subprojects {
+    apply plugin: 'java'
+    apply plugin: 'checkstyle'
+    apply plugin: 'org.springframework.boot'
+    java { toolchain { languageVersion = JavaLanguageVersion.of(25) } }
+    sourceSets.main.java.srcDir rootProject.file('common/src/main/java')
+    dependencies {
+        implementation platform('org.springframework.boot:spring-boot-dependencies:4.1.1')
+        implementation platform('software.amazon.awssdk:bom:2.56.0')
+        implementation 'org.springframework.boot:spring-boot-starter-webmvc'
+        implementation 'org.springframework.boot:spring-boot-starter-jackson'
+        implementation 'org.springframework.boot:spring-boot-starter-restclient'
+        implementation 'org.springframework.boot:spring-boot-starter-validation'
+        implementation 'org.springframework.boot:spring-boot-starter-actuator'
+        implementation 'io.micrometer:micrometer-registry-prometheus'
+        implementation 'software.amazon.awssdk:dynamodb'
+        implementation 'software.amazon.awssdk:dynamodb-enhanced'
+        implementation 'software.amazon.awssdk:url-connection-client'
+        implementation 'org.mapstruct:mapstruct:1.6.3'
+        compileOnly 'org.projectlombok:lombok:1.18.42'
+        annotationProcessor 'org.projectlombok:lombok:1.18.42'
+        annotationProcessor 'org.projectlombok:lombok-mapstruct-binding:0.2.0'
+        annotationProcessor 'org.mapstruct:mapstruct-processor:1.6.3'
+        testImplementation 'org.springframework.boot:spring-boot-starter-test'
+        testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    }
+    tasks.withType(Test).configureEach {
+        useJUnitPlatform()
+        maxHeapSize = '768m'
+        testLogging { events 'failed', 'skipped'; exceptionFormat = 'full' }
+    }
+    tasks.withType(JavaCompile).configureEach {
+        options.compilerArgs += [
+            '-Amapstruct.suppressGeneratorTimestamp=true',
+            '-Amapstruct.suppressGeneratorVersionInfoComment=true'
+        ]
+    }
+    tasks.named('test') { useJUnitPlatform { excludeTags 'compose' } }
+    tasks.register('integrationTest', Test) {
+        description = 'Runs behavior tests against DynamoDB Local managed by Compose'
+        group = 'verification'
+        testClassesDirs = sourceSets.test.output.classesDirs
+        classpath = sourceSets.test.runtimeClasspath
+        useJUnitPlatform { includeTags 'compose' }
+        dependsOn rootProject.tasks.named('composeUp'), tasks.named('testClasses')
+        shouldRunAfter tasks.named('test')
+    }
+    tasks.named('check') { dependsOn rootProject.tasks.named('spotlessCheck') }
+    checkstyle {
+        toolVersion = '12.2.0'
+        configFile = rootProject.file('config/checkstyle/checkstyle.xml')
+    }
+    tasks.withType(Checkstyle).configureEach {
+        // Source only: generated MapStruct code follows the processor's own signatures.
+        exclude '**/build/generated/**'
+    }
+    dependencyLocking { lockAllConfigurations() }
+}

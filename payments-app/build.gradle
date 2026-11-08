@@ -1,0 +1,12 @@
+tasks.register('processTest', Test) {
+    description = 'Real JVM restart and two-instance tests against DynamoDB Local'
+    group = 'verification'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    include '**/*ProcessTest.class'
+    dependsOn bootJar, project(':downstream-simulator').tasks.named('bootJar')
+    systemProperty 'lab.root', rootProject.projectDir.absolutePath
+}
+tasks.named('test') {
+    exclude '**/*ProcessTest.class'
+}

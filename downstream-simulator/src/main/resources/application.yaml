@@ -1,0 +1,19 @@
+server:
+  port: ${PORT:8081}
+spring:
+  application:
+    name: payments-simulator
+  profiles:
+    default: local
+  threads:
+    virtual:
+      enabled: true
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,metrics,prometheus
+lab:
+  endpoint: ${DYNAMODB_ENDPOINT:http://localhost:8000}
+  table: ${SIMULATOR_TABLE:simulator_lab}
+  issuer-confirmation-ms: 14400000
