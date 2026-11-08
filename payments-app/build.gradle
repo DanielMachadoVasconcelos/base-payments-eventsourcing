@@ -1,3 +1,7 @@
+dependencies {
+    testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
+}
+
 tasks.register('processTest', Test) {
     description = 'Real JVM restart and two-instance tests against DynamoDB Local'
     group = 'verification'

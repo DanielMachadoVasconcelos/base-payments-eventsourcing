@@ -16,6 +16,7 @@ For a new/changed requirement, behavior, HTTP contract or architecture decision,
 - Preserve conditional, atomic writes of events, metadata, projections and command results. Payload publication is separate; do not describe it as part of that transaction.
 - Preserve persisted document and idempotency-key formats unless a migration is deliberately included.
 - Do not put complete purchase attributes into growing event/HEAD documents. Do not promise infinite payload size.
+- Every JUnit test must have an explicit `@DisplayName("Should {outcome} When {context}")` and a matching `should{Outcome}When{Context}` method name, including parameterized and architecture tests. Preserve Given/When/Then sections and update requirement evidence when renaming tests.
 - Do not add Testcontainers. Use the existing Compose definition and isolated test tables.
 - When implementing the future payment workflow, persist intent before external business effects. Never hold a database transaction across an HTTP call.
 - Use specific business failures. Do not add LabException or expose tokens/payloads in routine logs.

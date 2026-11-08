@@ -18,12 +18,16 @@ class PaymentSessionAggregateBddTest {
 
     @Test
     @DisplayName(
-            "Given a purchase change, replay restores its purchase, version and original expiry")
-    void replayPurchaseChange() {
+            "Should restore the purchase version and recorded expiry without new events When replaying a purchase change")
+    void
+            shouldRestoreThePurchaseVersionAndRecordedExpiryWithoutNewEventsWhenReplayingAPurchaseChange() {
+        // Given
         var session = createSession();
         var command = change(1, CREATED_AT.plusSeconds(1));
+        // When
         session.changePurchase(command, POLICY);
         var replayed = PaymentSessionAggregate.rehydrate(IDENTITY, session.changes());
+        // Then
         assertThat(replayed.version()).isEqualTo(2);
         assertThat(replayed.purchase().amountMinor()).isEqualTo(15000);
         assertThat(replayed.purchasePayloadId()).isEqualTo("payload-150");
@@ -34,10 +38,13 @@ class PaymentSessionAggregateBddTest {
     }
 
     @Test
-    @DisplayName("Given a stale version, the command produces no event")
-    void rejectStalePurchaseChange() {
+    @DisplayName(
+            "Should preserve state without new events When a purchase change uses a stale version")
+    void shouldPreserveStateWithoutNewEventsWhenAPurchaseChangeUsesAStaleVersion() {
+        // Given
         var session = createSession();
         session.markChangesPersisted();
+        // When / Then
         assertThatThrownBy(
                         () -> session.changePurchase(change(0, CREATED_AT.plusSeconds(1)), POLICY))
                 .isInstanceOf(PaymentSessionVersionMismatchException.class);
@@ -46,34 +53,42 @@ class PaymentSessionAggregateBddTest {
     }
 
     @Test
-    @DisplayName("Given the exact expiry instant, the command is rejected")
-    void rejectPurchaseChangeAtExpiry() {
+    @DisplayName(
+            "Should reject the purchase change When the session reaches its exact expiry instant")
+    void shouldRejectThePurchaseChangeWhenTheSessionReachesItsExactExpiryInstant() {
+        // Given
         var session = createSession();
         session.markChangesPersisted();
+        // When / Then
         assertThatThrownBy(() -> session.changePurchase(change(1, session.expiresAt()), POLICY))
                 .isInstanceOf(PaymentSessionExpiredException.class);
         assertThat(session.changes()).isEmpty();
     }
 
     @Test
-    @DisplayName("Given an old purchase event, a replacement preserves its original revision")
-    void preserveOriginalPurchaseSnapshot() {
+    @DisplayName("Should preserve the original purchase revision When the purchase is replaced")
+    void shouldPreserveTheOriginalPurchaseRevisionWhenThePurchaseIsReplaced() {
+        // Given
         var session = createSession();
         var created = session.changes().getFirst();
+        // When
         session.changePurchase(change(1, CREATED_AT.plusSeconds(1)), POLICY);
+        // Then
         assertThat(created.snapshot().revision().summary().amountMinor()).isEqualTo(10000);
         assertThat(created.snapshot().revision().payloadId().value()).isEqualTo("payload-100");
         assertThat(session.purchasePayloadId()).isEqualTo("payload-150");
     }
 
     @Test
-    @DisplayName(
-            "Given a different expiry policy, the command uses that policy without a global clock")
-    void applyExplicitExpirationPolicy() {
+    @DisplayName("Should apply the supplied expiration policy When the purchase changes")
+    void shouldApplyTheSuppliedExpirationPolicyWhenThePurchaseChanges() {
+        // Given
         var session = createSession();
         var policy = new SessionExpirationPolicy(Duration.ofHours(49));
         var command = change(1, CREATED_AT.plusSeconds(10));
+        // When
         session.changePurchase(command, policy);
+        // Then
         assertThat(session.lastBusinessActivityAt()).isEqualTo(command.metadata().occurredAt());
         assertThat(session.expiresAt())
                 .isEqualTo(command.metadata().occurredAt().plus(Duration.ofHours(49)));

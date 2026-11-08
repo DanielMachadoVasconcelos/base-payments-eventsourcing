@@ -48,7 +48,11 @@ class PaymentSessionComposeIntegrationTest {
     }
 
     @Test
-    void givenLargePurchaseWhenReadAndRetriedThenItsEntireResponseIsPreserved() throws Exception {
+    @DisplayName(
+            "Should preserve the entire large purchase When the session is read and creation is retried")
+    void shouldPreserveTheEntireLargePurchaseWhenTheSessionIsReadAndCreationIsRetried()
+            throws Exception {
+        // Given
         String body =
                 objectMapper.writeValueAsString(
                         Map.of(
@@ -61,7 +65,9 @@ class PaymentSessionComposeIntegrationTest {
                                 "attributes",
                                 Map.of("notes", "a".repeat(650000))));
         var request = creation(UUID.randomUUID().toString(), body);
+        // When
         var created = send(request);
+        // Then
         assertThat(created.statusCode()).isEqualTo(201);
         var original = objectMapper.readTree(created.body());
         var repeated = send(request);
@@ -76,13 +82,17 @@ class PaymentSessionComposeIntegrationTest {
     }
 
     @Test
-    void givenChangedPurchaseWhenCreationIsRetriedThenItsOriginalResultIsReplayed()
+    @DisplayName(
+            "Should replay the original creation response When the purchase has subsequently changed")
+    void shouldReplayTheOriginalCreationResponseWhenThePurchaseHasSubsequentlyChanged()
+            // Given
             throws Exception {
         var createRequest =
                 creation(
                         UUID.randomUUID().toString(),
                         "{\"amountMinor\":10000,\"currency\":\"BRL\"}");
         var created = send(createRequest);
+        // Then
         assertThat(created.statusCode()).isEqualTo(201);
         var original = objectMapper.readTree(created.body());
         String path = "/v1/sessions/" + original.get("sessionId").asText();
@@ -94,7 +104,9 @@ class PaymentSessionComposeIntegrationTest {
                                 HttpRequest.BodyPublishers.ofString(
                                         "{\"amountMinor\":15000,\"currency\":\"BRL\"}"))
                         .build();
+        // When
         var changed = send(update);
+        // Then
         assertThat(changed.statusCode()).isEqualTo(200);
         assertThat(objectMapper.readTree(send(update).body()))
                 .isEqualTo(objectMapper.readTree(changed.body()));
@@ -112,7 +124,10 @@ class PaymentSessionComposeIntegrationTest {
     }
 
     @Test
-    void givenExistingEventDocumentWhenReplayedThenItsStorageSchemaIsPreserved() {
+    @DisplayName(
+            "Should preserve the stored event schema When an existing event document is replayed")
+    void shouldPreserveTheStoredEventSchemaWhenAnExistingEventDocumentIsReplayed() {
+        // Given
         var original =
                 json.deserializeObject(
                         """
@@ -123,7 +138,9 @@ class PaymentSessionComposeIntegrationTest {
                  "createdAt":"2026-10-18T12:00:00Z","lastBusinessActivityAt":"2026-10-18T12:00:00Z",
                  "expiresAt":"2026-10-20T12:00:00Z","retainUntil":"2026-10-20T12:00:00Z"}}
                 """);
+        // When
         var event = documentMapper.toEvent(original);
+        // Then
         assertThat(event.snapshot().revision().summary().amountMinor()).isEqualTo(10000);
         assertThat(event.snapshot().revision().payloadId().value()).isEqualTo("original-payload");
         assertThat(objectMapper.readTree(json.serialize(documentMapper.toEventDocument(event))))
@@ -131,12 +148,16 @@ class PaymentSessionComposeIntegrationTest {
     }
 
     @Test
-    void givenConcurrentIdenticalCommandsWhenCompletedThenEverySuccessNamesTheSameSession()
+    @DisplayName(
+            "Should return the same session for every successful response When identical creation commands race")
+    void shouldReturnTheSameSessionForEverySuccessfulResponseWhenIdenticalCreationCommandsRace()
+            // Given
             throws Exception {
         var request =
                 creation(
                         UUID.randomUUID().toString(),
                         "{\"amountMinor\":10000,\"currency\":\"BRL\"}");
+        // When
         var calls =
                 IntStream.range(0, 12)
                         .mapToObj(
@@ -146,6 +167,7 @@ class PaymentSessionComposeIntegrationTest {
                         .toList();
         CompletableFuture.allOf(calls.toArray(CompletableFuture[]::new)).join();
         var finalResponse = send(request);
+        // Then
         assertThat(finalResponse.statusCode()).isEqualTo(201);
         var original = objectMapper.readTree(finalResponse.body());
         for (var call : calls) {
@@ -161,10 +183,14 @@ class PaymentSessionComposeIntegrationTest {
     }
 
     @Test
-    void givenSameKeyWithDifferentContentThenTheOriginalSessionIsNotOverwritten() throws Exception {
+    @DisplayName("Should reject conflicting content When the same idempotency key is reused")
+    void shouldRejectConflictingContentWhenTheSameIdempotencyKeyIsReused() throws Exception {
+        // Given
         String key = UUID.randomUUID().toString();
         var original = send(creation(key, "{\"amountMinor\":10000,\"currency\":\"BRL\"}"));
+        // When
         var conflict = send(creation(key, "{\"amountMinor\":15000,\"currency\":\"BRL\"}"));
+        // Then
         assertThat(original.statusCode()).isEqualTo(201);
         assertThat(conflict.statusCode()).isEqualTo(409);
         assertThat(objectMapper.readTree(conflict.body()).get("code").asText())
@@ -172,7 +198,9 @@ class PaymentSessionComposeIntegrationTest {
     }
 
     @Test
-    void givenMalformedEtagWhenUpdatingThenBoundaryValidationRemainsUnchanged() throws Exception {
+    @DisplayName("Should reject the replacement When the ETag is malformed")
+    void shouldRejectTheReplacementWhenTheETagIsMalformed() throws Exception {
+        // Given
         var update =
                 request("/v1/sessions/any-session")
                         .header("Idempotency-Key", UUID.randomUUID().toString())
@@ -181,20 +209,26 @@ class PaymentSessionComposeIntegrationTest {
                                 HttpRequest.BodyPublishers.ofString(
                                         "{\"amountMinor\":15000,\"currency\":\"BRL\"}"))
                         .build();
+        // When
         var response = send(update);
+        // Then
         assertThat(response.statusCode()).isEqualTo(400);
         assertThat(objectMapper.readTree(response.body()).get("code").asText())
                 .isEqualTo("INVALID_ETAG");
     }
 
     @Test
-    void givenAStaleCommitWhenItsConditionFailsThenNoPartialEventOrIdempotencyResultIsWritten()
+    @DisplayName(
+            "Should preserve the winning transaction without partial writes When a stale commit fails")
+    void shouldPreserveTheWinningTransactionWithoutPartialWritesWhenAStaleCommitFails()
+            // Given
             throws Exception {
         var created =
                 send(
                         creation(
                                 UUID.randomUUID().toString(),
                                 "{\"amountMinor\":10000,\"currency\":\"BRL\"}"));
+        // Then
         assertThat(created.statusCode()).isEqualTo(201);
         String sessionId = objectMapper.readTree(created.body()).get("sessionId").asText();
         var identity =
@@ -231,6 +265,7 @@ class PaymentSessionComposeIntegrationTest {
                         resultMapper.toStoredResult(
                                 PaymentSessionView.from(stale, replacement), payloadId));
 
+        // When / Then
         assertThatThrownBy(() -> eventStore.append(stale, completion))
                 .isInstanceOf(TransactionCanceledException.class);
         String partitionKey = "M#readability-test#S#" + sessionId;
@@ -248,6 +283,65 @@ class PaymentSessionComposeIntegrationTest {
                                 "RESULT"))
                 .isNull();
         assertThat(dynamo.query(partitionKey, "REF#PAYLOAD#" + Json.sha256(payloadId))).isEmpty();
+    }
+
+    @Test
+    @DisplayName("Should preserve the winning purchase When a replacement uses a stale version")
+    void shouldPreserveTheWinningPurchaseWhenAReplacementUsesAStaleVersion() throws Exception {
+        // Given
+        var created =
+                send(
+                        creation(
+                                UUID.randomUUID().toString(),
+                                "{\"amountMinor\":10000,\"currency\":\"BRL\"}"));
+        String path =
+                "/v1/sessions/" + objectMapper.readTree(created.body()).get("sessionId").asText();
+        var winner = send(replacement(path, "\"1\"", 15000));
+        // Then
+        assertThat(winner.statusCode()).isEqualTo(200);
+
+        // When
+        var stale = send(replacement(path, "\"1\"", 20000));
+
+        // Then
+        assertThat(stale.statusCode()).isEqualTo(409);
+        assertThat(objectMapper.readTree(send(request(path).GET().build()).body()))
+                .isEqualTo(objectMapper.readTree(winner.body()));
+    }
+
+    @Test
+    @DisplayName("Should return session not found When another merchant reads the session")
+    void shouldReturnSessionNotFoundWhenAnotherMerchantReadsTheSession() throws Exception {
+        // Given
+        var created =
+                send(
+                        creation(
+                                UUID.randomUUID().toString(),
+                                "{\"amountMinor\":10000,\"currency\":\"BRL\"}"));
+        String path =
+                "/v1/sessions/" + objectMapper.readTree(created.body()).get("sessionId").asText();
+
+        // When
+        var response =
+                send(
+                        HttpRequest.newBuilder(URI.create("http://localhost:" + port + path))
+                                .header("X-Merchant-Id", "another-merchant")
+                                .GET()
+                                .build());
+
+        // Then
+        assertThat(response.statusCode()).isEqualTo(404);
+        assertThat(send(request(path).GET().build()).statusCode()).isEqualTo(200);
+    }
+
+    private HttpRequest replacement(String path, String version, long amountMinor) {
+        return request(path)
+                .header("Idempotency-Key", UUID.randomUUID().toString())
+                .header("If-Match", version)
+                .PUT(
+                        HttpRequest.BodyPublishers.ofString(
+                                "{\"amountMinor\":" + amountMinor + ",\"currency\":\"BRL\"}"))
+                .build();
     }
 
     private HttpRequest.Builder request(String path) {
