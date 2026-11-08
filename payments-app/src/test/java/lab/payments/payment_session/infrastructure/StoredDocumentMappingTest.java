@@ -10,6 +10,7 @@ import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 class StoredDocumentMappingTest {
     @Test
     void givenLombokAccessorsWhenEnhancedClientBuildsItsSchemaThenKeyMappingsRemainIntact() {
+        // Given
         var document = new StoredDocument();
         document.setPk("merchant-session");
         document.setSk("HEAD");
@@ -19,6 +20,7 @@ class StoredDocumentMappingTest {
         var attributes = schema.itemToMap(document, true);
         var restoredDocument = schema.mapToItem(attributes);
 
+        // Then
         assertThat(schema.tableMetadata().primaryPartitionKey()).isEqualTo("PK");
         assertThat(schema.tableMetadata().primarySortKey()).contains("SK");
         assertThat(attributes.get("PK")).isEqualTo(AttributeValue.fromS("merchant-session"));

@@ -37,6 +37,7 @@ class SimulatorComposeIntegrationTest {
 
     @Test
     void givenLostResponseAfterCommitWhenRetriedThenOnlyOneEffectExists() {
+        // Given
         var operation = authorization();
         simulator.fault(
                 MERCHANT_ID,
@@ -47,6 +48,7 @@ class SimulatorComposeIntegrationTest {
                         "AUTHORIZE",
                         "mode",
                         "FAIL_AFTER"));
+        // When / Then
         assertThatThrownBy(() -> simulator.execute(operation))
                 .isInstanceOf(PaymentPersistenceFailure.class);
         var recovered = simulator.execute(operation);
@@ -56,6 +58,7 @@ class SimulatorComposeIntegrationTest {
 
     @Test
     void givenFailureBeforeCommitWhenRetriedThenNoUnrecordedEffectIsDuplicated() {
+        // Given
         var operation = authorization();
         simulator.fault(
                 MERCHANT_ID,
@@ -66,6 +69,7 @@ class SimulatorComposeIntegrationTest {
                         "AUTHORIZE",
                         "mode",
                         "FAIL_BEFORE"));
+        // When / Then
         assertThatThrownBy(() -> simulator.execute(operation))
                 .isInstanceOf(PaymentPersistenceFailure.class);
         assertThat(simulator.effects(MERCHANT_ID, operation.target().sessionId())).isEmpty();
@@ -94,9 +98,12 @@ class SimulatorComposeIntegrationTest {
 
     @Test
     void givenAnOrderWhenAnotherPurchaseUsesTheSessionThenThereIsStillOnlyOneOrder() {
+        // Given
         String sessionId = UUID.randomUUID().toString();
         var original = order(sessionId, 10000);
+        // Then
         assertThat(Json.longValue(simulator.execute(original), "httpStatus")).isEqualTo(201);
+        // When / Then
         assertThatThrownBy(() -> simulator.execute(order(sessionId, 15000)))
                 .isInstanceOf(PaymentConflictException.class);
         assertThat(simulator.effects(MERCHANT_ID, sessionId)).hasSize(1);
@@ -104,6 +111,7 @@ class SimulatorComposeIntegrationTest {
 
     @Test
     void givenRejectionScenarioWhenPreparingAuthorizationThenNoAuthorizationStateIsWritten() {
+        // Given
         var operation = authorization();
         simulator.fault(
                 MERCHANT_ID,
@@ -115,6 +123,7 @@ class SimulatorComposeIntegrationTest {
                         "mode",
                         "REJECT"));
         var rejected = simulator.execute(operation);
+        // Then
         assertThat(Json.objectValue(rejected, "response").get("status")).isEqualTo("DECLINED");
         assertThat(Json.objectValue(simulator.execute(operation), "response"))
                 .isEqualTo(Json.objectValue(rejected, "response"));
@@ -123,6 +132,7 @@ class SimulatorComposeIntegrationTest {
 
     @Test
     void givenTheExistingHttpContractWhenPostingAndLookingUpThenBothResolveTheSameOperation()
+            // Given
             throws Exception {
         var operation = authorization();
         var client = HttpClient.newHttpClient();
@@ -135,7 +145,9 @@ class SimulatorComposeIntegrationTest {
                                 HttpRequest.BodyPublishers.ofString(
                                         json.serialize(operation.request())))
                         .build();
+        // When
         var response = client.send(post, HttpResponse.BodyHandlers.ofString());
+        // Then
         assertThat(response.statusCode()).isEqualTo(200);
         assertThat(json.deserializeObject(response.body()).get("status")).isEqualTo("ACCEPTED");
         var get =

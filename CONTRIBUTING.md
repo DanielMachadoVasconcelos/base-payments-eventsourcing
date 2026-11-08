@@ -33,6 +33,8 @@ Follow the [parameter rules](docs/parameter-guidelines.md): prefer 0–2 paramet
 
 ## BDD and verification
 
+JUnit runs classes concurrently with two workers and methods sequentially. Each integration class must own its table and cleanup. Architecture checks enforce direct layer dependencies.
+
 Executable behavior tests are JUnit tests; Given/When/Then names or display names should explain the rule. A prose feature file alone does not prove a requirement.
 
 ```bash

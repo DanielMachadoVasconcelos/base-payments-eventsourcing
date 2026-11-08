@@ -33,6 +33,8 @@ Implementation: [PaymentSessionAggregate.java](../payments-app/src/main/java/lab
 
 Evidence: [rejectStalePurchaseChange()](../payments-app/src/test/java/lab/payments/payment_session/domain/PaymentSessionAggregateBddTest.java)
 
+Additional HTTP evidence: [givenReplacedPurchaseWhenStaleVersionIsUsedThenTheWinnerIsPreserved()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionComposeIntegrationTest.java)
+
 ### REQ-SES-003 — Enforce the exact expiration boundary
 
 Status: Verified
@@ -42,6 +44,16 @@ Acceptance: Given the session expiry instant, when a purchase change is attempte
 Implementation: [SessionExpirationPolicy.java](../payments-app/src/main/java/lab/payments/payment_session/domain/SessionExpirationPolicy.java)
 
 Evidence: [rejectPurchaseChangeAtExpiry()](../payments-app/src/test/java/lab/payments/payment_session/domain/PaymentSessionAggregateBddTest.java)
+
+### REQ-SES-004 — Isolate merchant session reads
+
+Status: Verified
+
+Acceptance: Given a session belonging to one merchant, when another merchant reads its identifier, then the API returns 404 and the owner can still read the session.
+
+Implementation: [GetPaymentSessionService.java](../payments-app/src/main/java/lab/payments/payment_session/application/GetPaymentSessionService.java)
+
+Evidence: [givenAnotherMerchantWhenReadingASessionThenItIsNotFound()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionComposeIntegrationTest.java)
 
 ### REQ-IDEM-001 — Replay the original completed response
 
@@ -178,6 +190,18 @@ Prefer 0–2 parameters, allow three when cohesive, and use narrowly justified e
 Status: Adopted
 
 Use the [documentation skill](../.agents/skills/maintain-project-docs/SKILL.md), [contribution workflow](../CONTRIBUTING.md) and [PR checklist](../.github/pull_request_template.md). Maintain English documentation, stable requirement IDs, test evidence and relevant diagrams/decisions in the same change.
+
+### REQ-ENG-005 — Executable architecture boundaries
+
+Status: Adopted
+
+[Architecture checks](../payments-app/src/test/java/lab/payments/architecture/PaymentArchitectureTest.java) enforce domain independence from Spring, AWS and outer layers, application independence from entry and persistence implementations, and entry/persistence separation. Transitive common exception dependencies remain a documented limitation.
+
+### REQ-ENG-006 — Isolated parallel test classes
+
+Status: Adopted
+
+JUnit runs classes concurrently with two workers and keeps methods sequential. [Payment test configuration](../payments-app/src/test/resources/junit-platform.properties) and [simulator test configuration](../downstream-simulator/src/test/resources/junit-platform.properties) use the same policy. Integration suites allocate independent UUID table names and random HTTP ports and delete their own tables after the class completes.
 
 ## Planned payment workflow
 

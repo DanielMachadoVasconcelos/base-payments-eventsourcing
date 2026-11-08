@@ -10,6 +10,8 @@ A short handover, not a transcript. [Requirements](requirements.md) own scope/ev
 - Use DDD names, aggregate commands, injected JSON mapping, MapStruct, records and restrained Lombok. Follow [parameter rules](parameter-guidelines.md).
 - Compose is the only dependency definition. Shared common code is source compiled into both modules.
 
+- Tests use ArchUnit boundary checks and two concurrent JUnit class workers, with methods sequential and isolated integration tables.
+
 ## Sharp edges
 
 - GET replays events, not HEAD. HEAD is written atomically but is not the read source.
