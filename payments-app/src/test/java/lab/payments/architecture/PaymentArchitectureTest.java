@@ -2,52 +2,68 @@ package lab.payments.architecture;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
+import com.tngtech.archunit.core.domain.JavaClasses;
+import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
-import com.tngtech.archunit.junit.AnalyzeClasses;
-import com.tngtech.archunit.junit.ArchTest;
-import com.tngtech.archunit.lang.ArchRule;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 
-@AnalyzeClasses(packages = "lab.payments", importOptions = ImportOption.DoNotIncludeTests.class)
 class PaymentArchitectureTest {
-    @ArchTest
-    static final ArchRule domainOwnsItsDecisions =
-            noClasses()
-                    .that()
-                    .resideInAPackage("..domain..")
-                    .should()
-                    .dependOnClassesThat()
-                    .resideInAnyPackage(
-                            "..application..",
-                            "..entry..",
-                            "..infrastructure..",
-                            "org.springframework..",
-                            "software.amazon.awssdk..");
+    private static final JavaClasses APPLICATION_CLASSES =
+            new ClassFileImporter()
+                    .withImportOption(new ImportOption.DoNotIncludeTests())
+                    .importPackages("lab.payments");
 
-    @ArchTest
-    static final ArchRule applicationUsesPorts =
-            noClasses()
-                    .that()
-                    .resideInAPackage("..application..")
-                    .should()
-                    .dependOnClassesThat()
-                    .resideInAnyPackage(
-                            "..entry..", "..infrastructure..", "software.amazon.awssdk..");
+    @Test
+    @DisplayName("Should keep the domain independent When inspecting application dependencies")
+    void shouldKeepTheDomainIndependentWhenInspectingApplicationDependencies() {
+        noClasses()
+                .that()
+                .resideInAPackage("..domain..")
+                .should()
+                .dependOnClassesThat()
+                .resideInAnyPackage(
+                        "..application..",
+                        "..entry..",
+                        "..infrastructure..",
+                        "org.springframework..",
+                        "software.amazon.awssdk..")
+                .check(APPLICATION_CLASSES);
+    }
 
-    @ArchTest
-    static final ArchRule entryDoesNotAccessPersistence =
-            noClasses()
-                    .that()
-                    .resideInAPackage("..entry..")
-                    .should()
-                    .dependOnClassesThat()
-                    .resideInAnyPackage("..infrastructure..", "software.amazon.awssdk..");
+    @Test
+    @DisplayName("Should use ports When application code accesses external capabilities")
+    void shouldUsePortsWhenApplicationCodeAccessesExternalCapabilities() {
+        noClasses()
+                .that()
+                .resideInAPackage("..application..")
+                .should()
+                .dependOnClassesThat()
+                .resideInAnyPackage("..entry..", "..infrastructure..", "software.amazon.awssdk..")
+                .check(APPLICATION_CLASSES);
+    }
 
-    @ArchTest
-    static final ArchRule persistenceDoesNotDependOnHttpEntry =
-            noClasses()
-                    .that()
-                    .resideInAPackage("..infrastructure..")
-                    .should()
-                    .dependOnClassesThat()
-                    .resideInAPackage("..entry..");
+    @Test
+    @DisplayName("Should avoid persistence dependencies When entry code handles requests")
+    void shouldAvoidPersistenceDependenciesWhenEntryCodeHandlesRequests() {
+        noClasses()
+                .that()
+                .resideInAPackage("..entry..")
+                .should()
+                .dependOnClassesThat()
+                .resideInAnyPackage("..infrastructure..", "software.amazon.awssdk..")
+                .check(APPLICATION_CLASSES);
+    }
+
+    @Test
+    @DisplayName("Should avoid HTTP entry dependencies When persistence code stores data")
+    void shouldAvoidHTTPEntryDependenciesWhenPersistenceCodeStoresData() {
+        noClasses()
+                .that()
+                .resideInAPackage("..infrastructure..")
+                .should()
+                .dependOnClassesThat()
+                .resideInAPackage("..entry..")
+                .check(APPLICATION_CLASSES);
+    }
 }

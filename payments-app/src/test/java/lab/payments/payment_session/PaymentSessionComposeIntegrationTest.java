@@ -48,7 +48,10 @@ class PaymentSessionComposeIntegrationTest {
     }
 
     @Test
-    void givenLargePurchaseWhenReadAndRetriedThenItsEntireResponseIsPreserved() throws Exception {
+    @DisplayName(
+            "Should preserve the entire large purchase When the session is read and creation is retried")
+    void shouldPreserveTheEntireLargePurchaseWhenTheSessionIsReadAndCreationIsRetried()
+            throws Exception {
         // Given
         String body =
                 objectMapper.writeValueAsString(
@@ -79,7 +82,9 @@ class PaymentSessionComposeIntegrationTest {
     }
 
     @Test
-    void givenChangedPurchaseWhenCreationIsRetriedThenItsOriginalResultIsReplayed()
+    @DisplayName(
+            "Should replay the original creation response When the purchase has subsequently changed")
+    void shouldReplayTheOriginalCreationResponseWhenThePurchaseHasSubsequentlyChanged()
             // Given
             throws Exception {
         var createRequest =
@@ -119,7 +124,9 @@ class PaymentSessionComposeIntegrationTest {
     }
 
     @Test
-    void givenExistingEventDocumentWhenReplayedThenItsStorageSchemaIsPreserved() {
+    @DisplayName(
+            "Should preserve the stored event schema When an existing event document is replayed")
+    void shouldPreserveTheStoredEventSchemaWhenAnExistingEventDocumentIsReplayed() {
         // Given
         var original =
                 json.deserializeObject(
@@ -141,7 +148,9 @@ class PaymentSessionComposeIntegrationTest {
     }
 
     @Test
-    void givenConcurrentIdenticalCommandsWhenCompletedThenEverySuccessNamesTheSameSession()
+    @DisplayName(
+            "Should return the same session for every successful response When identical creation commands race")
+    void shouldReturnTheSameSessionForEverySuccessfulResponseWhenIdenticalCreationCommandsRace()
             // Given
             throws Exception {
         var request =
@@ -174,7 +183,8 @@ class PaymentSessionComposeIntegrationTest {
     }
 
     @Test
-    void givenSameKeyWithDifferentContentThenTheOriginalSessionIsNotOverwritten() throws Exception {
+    @DisplayName("Should reject conflicting content When the same idempotency key is reused")
+    void shouldRejectConflictingContentWhenTheSameIdempotencyKeyIsReused() throws Exception {
         // Given
         String key = UUID.randomUUID().toString();
         var original = send(creation(key, "{\"amountMinor\":10000,\"currency\":\"BRL\"}"));
@@ -188,7 +198,8 @@ class PaymentSessionComposeIntegrationTest {
     }
 
     @Test
-    void givenMalformedEtagWhenUpdatingThenBoundaryValidationRemainsUnchanged() throws Exception {
+    @DisplayName("Should reject the replacement When the ETag is malformed")
+    void shouldRejectTheReplacementWhenTheETagIsMalformed() throws Exception {
         // Given
         var update =
                 request("/v1/sessions/any-session")
@@ -207,7 +218,9 @@ class PaymentSessionComposeIntegrationTest {
     }
 
     @Test
-    void givenAStaleCommitWhenItsConditionFailsThenNoPartialEventOrIdempotencyResultIsWritten()
+    @DisplayName(
+            "Should preserve the winning transaction without partial writes When a stale commit fails")
+    void shouldPreserveTheWinningTransactionWithoutPartialWritesWhenAStaleCommitFails()
             // Given
             throws Exception {
         var created =
@@ -273,8 +286,8 @@ class PaymentSessionComposeIntegrationTest {
     }
 
     @Test
-    @DisplayName("A stale purchase replacement preserves the winning purchase")
-    void givenReplacedPurchaseWhenStaleVersionIsUsedThenTheWinnerIsPreserved() throws Exception {
+    @DisplayName("Should preserve the winning purchase When a replacement uses a stale version")
+    void shouldPreserveTheWinningPurchaseWhenAReplacementUsesAStaleVersion() throws Exception {
         // Given
         var created =
                 send(
@@ -297,8 +310,8 @@ class PaymentSessionComposeIntegrationTest {
     }
 
     @Test
-    @DisplayName("A merchant cannot read another merchant's session")
-    void givenAnotherMerchantWhenReadingASessionThenItIsNotFound() throws Exception {
+    @DisplayName("Should return session not found When another merchant reads the session")
+    void shouldReturnSessionNotFoundWhenAnotherMerchantReadsTheSession() throws Exception {
         // Given
         var created =
                 send(

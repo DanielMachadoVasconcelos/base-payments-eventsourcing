@@ -3,13 +3,16 @@ package lab.payments.payment_session.infrastructure;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import lab.common.StoredDocument;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import software.amazon.awssdk.enhanced.dynamodb.TableSchema;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 
 class StoredDocumentMappingTest {
     @Test
-    void givenLombokAccessorsWhenEnhancedClientBuildsItsSchemaThenKeyMappingsRemainIntact() {
+    @DisplayName(
+            "Should preserve key mappings When the enhanced client builds the stored document schema")
+    void shouldPreserveKeyMappingsWhenTheEnhancedClientBuildsTheStoredDocumentSchema() {
         // Given
         var document = new StoredDocument();
         document.setPk("merchant-session");

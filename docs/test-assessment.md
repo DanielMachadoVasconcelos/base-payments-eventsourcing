@@ -16,6 +16,10 @@ Added HTTP coverage for stale replacements and merchant read isolation, phase co
 
 The RestTestClient suite uses the full Spring application through MVC and a real isolated DynamoDB table. Typed requests and responses cover defaults, complete replacement, validation, unknown sessions, cross-merchant replacement, scoped idempotency and correction after rejection. Malformed JSON is deliberately raw text. Problem responses are decoded into ProblemDetail and checked for status, code and correlation identity. Existing live-server and concurrent-request scenarios remain complementary evidence.
 
+## Test naming convention
+
+Every JUnit test has an explicit `@DisplayName("Should {outcome} When {context}")` and matching `should{Outcome}When{Context}` method name. This covers domain, mapping, persistence, HTTP, simulator and architecture tests. Architecture checks run as named JUnit methods using ArchUnit rules. Requirement evidence follows the renamed methods.
+
 ## Further improvements
 
 1. Add Given/When/Then sections and business display names to existing scenarios. Keep compatibility tests explicit about their storage contract.

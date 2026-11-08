@@ -46,7 +46,7 @@ class PaymentSessionHttpContractTest {
     @Test
     @DisplayName(
             "Should create a session with default optional fields When only required purchase fields are provided")
-    void shouldCreateSessionWithDefaultsWhenOnlyRequiredFieldsAreProvided() {
+    void shouldCreateASessionWithDefaultOptionalFieldsWhenOnlyRequiredPurchaseFieldsAreProvided() {
         // Given
         var purchase = new CreatePaymentSessionRequest(10000, "BRL", null, null);
 
@@ -75,7 +75,7 @@ class PaymentSessionHttpContractTest {
     @Test
     @DisplayName(
             "Should replace the entire purchase and reset omitted fields When the current version is supplied")
-    void shouldReplaceEntirePurchaseWhenCurrentVersionIsSupplied() {
+    void shouldReplaceTheEntirePurchaseAndResetOmittedFieldsWhenTheCurrentVersionIsSupplied() {
         // Given
         var original =
                 createSession(
@@ -110,7 +110,7 @@ class PaymentSessionHttpContractTest {
     @ParameterizedTest(name = "missing {0}")
     @ValueSource(strings = {"X-Merchant-Id", "Idempotency-Key", "If-Match"})
     @DisplayName("Should reject the request When a required header is missing")
-    void shouldRejectRequestWhenRequiredHeaderIsMissing(String missingHeader) {
+    void shouldRejectTheRequestWhenARequiredHeaderIsMissing(String missingHeader) {
         // Given
         var request =
                 client.put()
@@ -134,7 +134,7 @@ class PaymentSessionHttpContractTest {
     @ParameterizedTest
     @MethodSource("invalidAmounts")
     @DisplayName("Should reject the purchase When the amount is missing or invalid")
-    void shouldRejectPurchaseWhenAmountIsInvalid(Object amount) {
+    void shouldRejectThePurchaseWhenTheAmountIsMissingOrInvalid(Object amount) {
         // Given
         var purchase = new CreatePaymentSessionRequest(amount, "BRL", null, null);
 
@@ -153,7 +153,7 @@ class PaymentSessionHttpContractTest {
     @NullSource
     @ValueSource(strings = {"", "brl", "ZZZ"})
     @DisplayName("Should reject the purchase When the currency is missing or invalid")
-    void shouldRejectPurchaseWhenCurrencyIsInvalid(String currency) {
+    void shouldRejectThePurchaseWhenTheCurrencyIsMissingOrInvalid(String currency) {
         // Given
         var purchase = new CreatePaymentSessionRequest(10000, currency, null, null);
 
@@ -172,7 +172,7 @@ class PaymentSessionHttpContractTest {
                 "abcdefghijklmnopqrstuvwxyzabcdefghijklmnopqrstuvwxyzabcdefghijklm"
             })
     @DisplayName("Should reject the request When the merchant identifier is invalid")
-    void shouldRejectRequestWhenMerchantIsInvalid(String merchant) {
+    void shouldRejectTheRequestWhenTheMerchantIdentifierIsInvalid(String merchant) {
         // Given
         var purchase = purchase();
 
@@ -186,7 +186,7 @@ class PaymentSessionHttpContractTest {
     @ParameterizedTest
     @MethodSource("invalidKeys")
     @DisplayName("Should reject the request When the idempotency key is invalid")
-    void shouldRejectRequestWhenIdempotencyKeyIsInvalid(String key) {
+    void shouldRejectTheRequestWhenTheIdempotencyKeyIsInvalid(String key) {
         // Given
         var purchase = purchase();
 
@@ -203,7 +203,7 @@ class PaymentSessionHttpContractTest {
 
     @Test
     @DisplayName("Should reject malformed JSON and allow correction When the same key is retried")
-    void shouldAllowCorrectionWhenMalformedJsonIsRetriedWithTheSameKey() {
+    void shouldRejectMalformedJSONAndAllowCorrectionWhenTheSameKeyIsRetried() {
         // Given
         String key = newKey();
 
@@ -224,7 +224,7 @@ class PaymentSessionHttpContractTest {
 
     @Test
     @DisplayName("Should return session not found When reading an unknown session")
-    void shouldReturnNotFoundWhenReadingUnknownSession() {
+    void shouldReturnSessionNotFoundWhenReadingAnUnknownSession() {
         // Given
         String sessionId = newKey();
 
@@ -241,7 +241,7 @@ class PaymentSessionHttpContractTest {
 
     @Test
     @DisplayName("Should return session not found When replacing an unknown session")
-    void shouldReturnNotFoundWhenReplacingUnknownSession() {
+    void shouldReturnSessionNotFoundWhenReplacingAnUnknownSession() {
         // Given
         String sessionId = newKey();
 
@@ -259,7 +259,7 @@ class PaymentSessionHttpContractTest {
     @Test
     @DisplayName(
             "Should preserve the owner's purchase When another merchant attempts to replace it")
-    void shouldPreserveOwnersPurchaseWhenAnotherMerchantAttemptsReplacement() {
+    void shouldPreserveTheOwnersPurchaseWhenAnotherMerchantAttemptsToReplaceIt() {
         // Given
         var original = createSession(MERCHANT, newKey(), purchase());
 
@@ -278,7 +278,7 @@ class PaymentSessionHttpContractTest {
     @Test
     @DisplayName(
             "Should create independent sessions and replay each original response When merchants share a key")
-    void shouldCreateIndependentSessionsAndReplayWhenMerchantsShareAKey() {
+    void shouldCreateIndependentSessionsAndReplayEachOriginalResponseWhenMerchantsShareAKey() {
         // Given
         String key = newKey();
         var first = createSession(MERCHANT, key, purchase());
@@ -297,7 +297,7 @@ class PaymentSessionHttpContractTest {
     @Test
     @DisplayName(
             "Should accept the corrected replacement When its key was previously rejected for a stale version")
-    void shouldAcceptCorrectedReplacementWhenKeyWasRejectedForStaleVersion() {
+    void shouldAcceptTheCorrectedReplacementWhenItsKeyWasPreviouslyRejectedForAStaleVersion() {
         // Given
         var original = createSession(MERCHANT, newKey(), purchase());
         String key = newKey();
@@ -333,7 +333,7 @@ class PaymentSessionHttpContractTest {
     @Test
     @DisplayName(
             "Should return a business code and correlation identifier When an application rule rejects the request")
-    void shouldReturnProblemDetailsWhenApplicationRuleRejectsRequest() {
+    void shouldReturnABusinessCodeAndCorrelationIdentifierWhenAnApplicationRuleRejectsTheRequest() {
         // Given
         String key = newKey();
         var original = createSession(MERCHANT, key, purchase());

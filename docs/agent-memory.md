@@ -11,6 +11,7 @@ A short handover, not a transcript. [Requirements](requirements.md) own scope/ev
 - Compose is the only dependency definition. Shared common code is source compiled into both modules.
 
 - HTTP contract tests use MVC-backed RestTestClient with real DynamoDB and typed request/response records; raw text is used for malformed JSON. Existing live-server scenarios remain in place.
+- All JUnit tests use explicit Should ... When ... display names and matching should...When... method names, including architecture checks.
 - Tests use ArchUnit boundary checks and two concurrent JUnit class workers, with methods sequential and isolated integration tables.
 
 ## Sharp edges

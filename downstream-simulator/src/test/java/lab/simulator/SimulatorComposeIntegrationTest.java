@@ -36,7 +36,9 @@ class SimulatorComposeIntegrationTest {
     }
 
     @Test
-    void givenLostResponseAfterCommitWhenRetriedThenOnlyOneEffectExists() {
+    @DisplayName(
+            "Should retain exactly one effect When an operation is retried after a lost response")
+    void shouldRetainExactlyOneEffectWhenAnOperationIsRetriedAfterALostResponse() {
         // Given
         var operation = authorization();
         simulator.fault(
@@ -57,7 +59,9 @@ class SimulatorComposeIntegrationTest {
     }
 
     @Test
-    void givenFailureBeforeCommitWhenRetriedThenNoUnrecordedEffectIsDuplicated() {
+    @DisplayName(
+            "Should create exactly one effect When retrying an operation that failed before commit")
+    void shouldCreateExactlyOneEffectWhenRetryingAnOperationThatFailedBeforeCommit() {
         // Given
         var operation = authorization();
         simulator.fault(
@@ -97,7 +101,9 @@ class SimulatorComposeIntegrationTest {
     }
 
     @Test
-    void givenAnOrderWhenAnotherPurchaseUsesTheSessionThenThereIsStillOnlyOneOrder() {
+    @DisplayName(
+            "Should preserve the original order When another purchase attempts an order for the same session")
+    void shouldPreserveTheOriginalOrderWhenAnotherPurchaseAttemptsAnOrderForTheSameSession() {
         // Given
         String sessionId = UUID.randomUUID().toString();
         var original = order(sessionId, 10000);
@@ -110,7 +116,9 @@ class SimulatorComposeIntegrationTest {
     }
 
     @Test
-    void givenRejectionScenarioWhenPreparingAuthorizationThenNoAuthorizationStateIsWritten() {
+    @DisplayName(
+            "Should leave authorization state unwritten When the simulator rejects authorization")
+    void shouldLeaveAuthorizationStateUnwrittenWhenTheSimulatorRejectsAuthorization() {
         // Given
         var operation = authorization();
         simulator.fault(
@@ -131,7 +139,9 @@ class SimulatorComposeIntegrationTest {
     }
 
     @Test
-    void givenTheExistingHttpContractWhenPostingAndLookingUpThenBothResolveTheSameOperation()
+    @DisplayName(
+            "Should resolve the same recorded operation When posting and looking up its result over HTTP")
+    void shouldResolveTheSameRecordedOperationWhenPostingAndLookingUpItsResultOverHTTP()
             // Given
             throws Exception {
         var operation = authorization();

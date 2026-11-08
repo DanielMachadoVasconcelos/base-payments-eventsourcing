@@ -18,8 +18,9 @@ class PaymentSessionAggregateBddTest {
 
     @Test
     @DisplayName(
-            "Given a purchase change, replay restores its purchase, version and original expiry")
-    void replayPurchaseChange() {
+            "Should restore the purchase version and recorded expiry without new events When replaying a purchase change")
+    void
+            shouldRestoreThePurchaseVersionAndRecordedExpiryWithoutNewEventsWhenReplayingAPurchaseChange() {
         // Given
         var session = createSession();
         var command = change(1, CREATED_AT.plusSeconds(1));
@@ -37,8 +38,9 @@ class PaymentSessionAggregateBddTest {
     }
 
     @Test
-    @DisplayName("Given a stale version, the command produces no event")
-    void rejectStalePurchaseChange() {
+    @DisplayName(
+            "Should preserve state without new events When a purchase change uses a stale version")
+    void shouldPreserveStateWithoutNewEventsWhenAPurchaseChangeUsesAStaleVersion() {
         // Given
         var session = createSession();
         session.markChangesPersisted();
@@ -51,8 +53,9 @@ class PaymentSessionAggregateBddTest {
     }
 
     @Test
-    @DisplayName("Given the exact expiry instant, the command is rejected")
-    void rejectPurchaseChangeAtExpiry() {
+    @DisplayName(
+            "Should reject the purchase change When the session reaches its exact expiry instant")
+    void shouldRejectThePurchaseChangeWhenTheSessionReachesItsExactExpiryInstant() {
         // Given
         var session = createSession();
         session.markChangesPersisted();
@@ -63,8 +66,8 @@ class PaymentSessionAggregateBddTest {
     }
 
     @Test
-    @DisplayName("Given an old purchase event, a replacement preserves its original revision")
-    void preserveOriginalPurchaseSnapshot() {
+    @DisplayName("Should preserve the original purchase revision When the purchase is replaced")
+    void shouldPreserveTheOriginalPurchaseRevisionWhenThePurchaseIsReplaced() {
         // Given
         var session = createSession();
         var created = session.changes().getFirst();
@@ -77,9 +80,8 @@ class PaymentSessionAggregateBddTest {
     }
 
     @Test
-    @DisplayName(
-            "Given a different expiry policy, the command uses that policy without a global clock")
-    void applyExplicitExpirationPolicy() {
+    @DisplayName("Should apply the supplied expiration policy When the purchase changes")
+    void shouldApplyTheSuppliedExpirationPolicyWhenThePurchaseChanges() {
         // Given
         var session = createSession();
         var policy = new SessionExpirationPolicy(Duration.ofHours(49));

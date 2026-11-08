@@ -21,9 +21,9 @@ Acceptance: Given a session, when its purchase is replaced with the current ETag
 
 Implementation: [PaymentSessionController.java](../payments-app/src/main/java/lab/payments/payment_session/entry/PaymentSessionController.java)
 
-Evidence: [givenChangedPurchaseWhenCreationIsRetriedThenItsOriginalResultIsReplayed()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionComposeIntegrationTest.java)
+Evidence: [shouldReplayTheOriginalCreationResponseWhenThePurchaseHasSubsequentlyChanged()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionComposeIntegrationTest.java)
 
-Additional replacement evidence: [shouldReplaceEntirePurchaseWhenCurrentVersionIsSupplied()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionHttpContractTest.java)
+Additional replacement evidence: [shouldReplaceTheEntirePurchaseAndResetOmittedFieldsWhenTheCurrentVersionIsSupplied()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionHttpContractTest.java)
 
 ### REQ-SES-002 — Reject stale changes without new events
 
@@ -33,9 +33,9 @@ Acceptance: Given an obsolete version, when a change is requested, then the aggr
 
 Implementation: [PaymentSessionAggregate.java](../payments-app/src/main/java/lab/payments/payment_session/domain/PaymentSessionAggregate.java)
 
-Evidence: [rejectStalePurchaseChange()](../payments-app/src/test/java/lab/payments/payment_session/domain/PaymentSessionAggregateBddTest.java)
+Evidence: [shouldPreserveStateWithoutNewEventsWhenAPurchaseChangeUsesAStaleVersion()](../payments-app/src/test/java/lab/payments/payment_session/domain/PaymentSessionAggregateBddTest.java)
 
-Additional HTTP evidence: [givenReplacedPurchaseWhenStaleVersionIsUsedThenTheWinnerIsPreserved()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionComposeIntegrationTest.java)
+Additional HTTP evidence: [shouldPreserveTheWinningPurchaseWhenAReplacementUsesAStaleVersion()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionComposeIntegrationTest.java)
 
 ### REQ-SES-003 — Enforce the exact expiration boundary
 
@@ -45,7 +45,7 @@ Acceptance: Given the session expiry instant, when a purchase change is attempte
 
 Implementation: [SessionExpirationPolicy.java](../payments-app/src/main/java/lab/payments/payment_session/domain/SessionExpirationPolicy.java)
 
-Evidence: [rejectPurchaseChangeAtExpiry()](../payments-app/src/test/java/lab/payments/payment_session/domain/PaymentSessionAggregateBddTest.java)
+Evidence: [shouldRejectThePurchaseChangeWhenTheSessionReachesItsExactExpiryInstant()](../payments-app/src/test/java/lab/payments/payment_session/domain/PaymentSessionAggregateBddTest.java)
 
 ### REQ-SES-004 — Isolate merchant session reads
 
@@ -55,7 +55,7 @@ Acceptance: Given a session belonging to one merchant, when another merchant rea
 
 Implementation: [GetPaymentSessionService.java](../payments-app/src/main/java/lab/payments/payment_session/application/GetPaymentSessionService.java)
 
-Evidence: [givenAnotherMerchantWhenReadingASessionThenItIsNotFound()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionComposeIntegrationTest.java)
+Evidence: [shouldReturnSessionNotFoundWhenAnotherMerchantReadsTheSession()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionComposeIntegrationTest.java)
 
 ### REQ-IDEM-001 — Replay the original completed response
 
@@ -65,7 +65,7 @@ Acceptance: Given a completed creation followed by a purchase change, when the o
 
 Implementation: [CreatePaymentSessionService.java](../payments-app/src/main/java/lab/payments/payment_session/application/CreatePaymentSessionService.java)
 
-Evidence: [givenChangedPurchaseWhenCreationIsRetriedThenItsOriginalResultIsReplayed()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionComposeIntegrationTest.java)
+Evidence: [shouldReplayTheOriginalCreationResponseWhenThePurchaseHasSubsequentlyChanged()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionComposeIntegrationTest.java)
 
 ### REQ-IDEM-004 — Isolate completed command keys by merchant
 
@@ -75,7 +75,7 @@ Acceptance: Given different merchants using the same creation key, when each ret
 
 Implementation: [CreatePaymentSessionService.java](../payments-app/src/main/java/lab/payments/payment_session/application/CreatePaymentSessionService.java)
 
-Evidence: [shouldCreateIndependentSessionsAndReplayWhenMerchantsShareAKey()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionHttpContractTest.java)
+Evidence: [shouldCreateIndependentSessionsAndReplayEachOriginalResponseWhenMerchantsShareAKey()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionHttpContractTest.java)
 
 ### REQ-IDEM-005 — Allow correction after rejected input or stale versions
 
@@ -85,7 +85,7 @@ Acceptance: Given malformed JSON or a stale replacement, when corrected with the
 
 Implementation: [ChangePurchaseService.java](../payments-app/src/main/java/lab/payments/payment_session/application/ChangePurchaseService.java)
 
-Evidence: [shouldAllowCorrectionWhenMalformedJsonIsRetriedWithTheSameKey()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionHttpContractTest.java), [shouldAcceptCorrectedReplacementWhenKeyWasRejectedForStaleVersion()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionHttpContractTest.java)
+Evidence: [shouldRejectMalformedJSONAndAllowCorrectionWhenTheSameKeyIsRetried()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionHttpContractTest.java), [shouldAcceptTheCorrectedReplacementWhenItsKeyWasPreviouslyRejectedForAStaleVersion()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionHttpContractTest.java)
 
 ### REQ-IDEM-002 — Reject changed content under the same key
 
@@ -95,7 +95,7 @@ Acceptance: Given a completed command, when its scoped key is reused with differ
 
 Implementation: [DynamoDbPaymentSessionRepository.java](../payments-app/src/main/java/lab/payments/payment_session/infrastructure/DynamoDbPaymentSessionRepository.java)
 
-Evidence: [givenSameKeyWithDifferentContentThenTheOriginalSessionIsNotOverwritten()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionComposeIntegrationTest.java)
+Evidence: [shouldRejectConflictingContentWhenTheSameIdempotencyKeyIsReused()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionComposeIntegrationTest.java)
 
 ### REQ-IDEM-003 — Reconcile a concurrent same-key winner
 
@@ -105,7 +105,7 @@ Acceptance: Given concurrent identical creates, when responses succeed, then the
 
 Implementation: [DynamoDbPaymentSessionRepository.java](../payments-app/src/main/java/lab/payments/payment_session/infrastructure/DynamoDbPaymentSessionRepository.java)
 
-Evidence: [givenConcurrentIdenticalCommandsWhenCompletedThenEverySuccessNamesTheSameSession()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionComposeIntegrationTest.java)
+Evidence: [shouldReturnTheSameSessionForEverySuccessfulResponseWhenIdenticalCreationCommandsRace()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionComposeIntegrationTest.java)
 
 ### REQ-EVT-001 — Replay stored facts without renewing them
 
@@ -115,7 +115,7 @@ Acceptance: Given creation and purchase-change events, when the aggregate is reh
 
 Implementation: [PaymentSessionAggregate.java](../payments-app/src/main/java/lab/payments/payment_session/domain/PaymentSessionAggregate.java)
 
-Evidence: [replayPurchaseChange()](../payments-app/src/test/java/lab/payments/payment_session/domain/PaymentSessionAggregateBddTest.java)
+Evidence: [shouldRestoreThePurchaseVersionAndRecordedExpiryWithoutNewEventsWhenReplayingAPurchaseChange()](../payments-app/src/test/java/lab/payments/payment_session/domain/PaymentSessionAggregateBddTest.java)
 
 ### REQ-EVT-002 — Commit stream and command result atomically
 
@@ -125,7 +125,7 @@ Acceptance: Given a stale transaction, when its condition fails, then no partial
 
 Implementation: [DynamoDbPaymentSessionRepository.java](../payments-app/src/main/java/lab/payments/payment_session/infrastructure/DynamoDbPaymentSessionRepository.java)
 
-Evidence: [givenAStaleCommitWhenItsConditionFailsThenNoPartialEventOrIdempotencyResultIsWritten()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionComposeIntegrationTest.java)
+Evidence: [shouldPreserveTheWinningTransactionWithoutPartialWritesWhenAStaleCommitFails()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionComposeIntegrationTest.java)
 
 ### REQ-EVT-003 — Preserve persisted event compatibility
 
@@ -135,7 +135,7 @@ Acceptance: Given an existing event document, when current code loads it, then t
 
 Implementation: [PaymentSessionDocumentMapper.java](../payments-app/src/main/java/lab/payments/payment_session/infrastructure/PaymentSessionDocumentMapper.java)
 
-Evidence: [givenExistingEventDocumentWhenReplayedThenItsStorageSchemaIsPreserved()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionComposeIntegrationTest.java)
+Evidence: [shouldPreserveTheStoredEventSchemaWhenAnExistingEventDocumentIsReplayed()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionComposeIntegrationTest.java)
 
 ### REQ-DATA-001 — Store purchase documents beyond one DynamoDB item
 
@@ -145,7 +145,7 @@ Acceptance: Given a purchase containing a 650 KiB attribute, when created, read 
 
 Implementation: [DynamoDbPurchasePayloadStore.java](../payments-app/src/main/java/lab/payments/payment_session/infrastructure/DynamoDbPurchasePayloadStore.java)
 
-Evidence: [givenLargePurchaseWhenReadAndRetriedThenItsEntireResponseIsPreserved()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionComposeIntegrationTest.java)
+Evidence: [shouldPreserveTheEntireLargePurchaseWhenTheSessionIsReadAndCreationIsRetried()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionComposeIntegrationTest.java)
 
 ### REQ-SIM-001 — Retain an external effect after a lost response
 
@@ -155,7 +155,7 @@ Acceptance: Given a simulator after-commit failure, when the same operation is r
 
 Implementation: [SimulatorService.java](../downstream-simulator/src/main/java/lab/simulator/SimulatorService.java)
 
-Evidence: [givenLostResponseAfterCommitWhenRetriedThenOnlyOneEffectExists()](../downstream-simulator/src/test/java/lab/simulator/SimulatorComposeIntegrationTest.java)
+Evidence: [shouldRetainExactlyOneEffectWhenAnOperationIsRetriedAfterALostResponse()](../downstream-simulator/src/test/java/lab/simulator/SimulatorComposeIntegrationTest.java)
 
 ### REQ-SIM-002 — Produce no effect on a before-commit failure
 
@@ -165,7 +165,7 @@ Acceptance: Given a simulator failure before persistence, when retried, then the
 
 Implementation: [SimulatorFaultPolicy.java](../downstream-simulator/src/main/java/lab/simulator/SimulatorFaultPolicy.java)
 
-Evidence: [givenFailureBeforeCommitWhenRetriedThenNoUnrecordedEffectIsDuplicated()](../downstream-simulator/src/test/java/lab/simulator/SimulatorComposeIntegrationTest.java)
+Evidence: [shouldCreateExactlyOneEffectWhenRetryingAnOperationThatFailedBeforeCommit()](../downstream-simulator/src/test/java/lab/simulator/SimulatorComposeIntegrationTest.java)
 
 ### REQ-SIM-003 — Enforce order uniqueness inside the simulator
 
@@ -175,7 +175,7 @@ Acceptance: Given a simulated session order, when another purchase attempts an o
 
 Implementation: [SimulatorOperationProcessor.java](../downstream-simulator/src/main/java/lab/simulator/SimulatorOperationProcessor.java)
 
-Evidence: [givenAnOrderWhenAnotherPurchaseUsesTheSessionThenThereIsStillOnlyOneOrder()](../downstream-simulator/src/test/java/lab/simulator/SimulatorComposeIntegrationTest.java)
+Evidence: [shouldPreserveTheOriginalOrderWhenAnotherPurchaseAttemptsAnOrderForTheSameSession()](../downstream-simulator/src/test/java/lab/simulator/SimulatorComposeIntegrationTest.java)
 
 ### REQ-SIM-004 — Resolve the same operation through HTTP and lookup
 
@@ -185,7 +185,7 @@ Acceptance: Given a simulated operation submitted over HTTP, when its result is 
 
 Implementation: [SimulatorController.java](../downstream-simulator/src/main/java/lab/simulator/SimulatorController.java)
 
-Evidence: [givenTheExistingHttpContractWhenPostingAndLookingUpThenBothResolveTheSameOperation()](../downstream-simulator/src/test/java/lab/simulator/SimulatorComposeIntegrationTest.java)
+Evidence: [shouldResolveTheSameRecordedOperationWhenPostingAndLookingUpItsResultOverHTTP()](../downstream-simulator/src/test/java/lab/simulator/SimulatorComposeIntegrationTest.java)
 
 ### REQ-API-002 — Validate HTTP inputs and return traceable application errors
 
@@ -195,9 +195,9 @@ Acceptance: Given missing required headers or invalid amount, currency, merchant
 
 Implementation: [HttpErrors.java](../common/src/main/java/lab/common/HttpErrors.java)
 
-Evidence: [shouldRejectRequestWhenRequiredHeaderIsMissing()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionHttpContractTest.java), [shouldRejectPurchaseWhenAmountIsInvalid()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionHttpContractTest.java), [shouldRejectPurchaseWhenCurrencyIsInvalid()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionHttpContractTest.java), [shouldRejectRequestWhenMerchantIsInvalid()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionHttpContractTest.java), [shouldRejectRequestWhenIdempotencyKeyIsInvalid()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionHttpContractTest.java), [shouldReturnProblemDetailsWhenApplicationRuleRejectsRequest()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionHttpContractTest.java)
+Evidence: [shouldRejectTheRequestWhenARequiredHeaderIsMissing()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionHttpContractTest.java), [shouldRejectThePurchaseWhenTheAmountIsMissingOrInvalid()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionHttpContractTest.java), [shouldRejectThePurchaseWhenTheCurrencyIsMissingOrInvalid()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionHttpContractTest.java), [shouldRejectTheRequestWhenTheMerchantIdentifierIsInvalid()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionHttpContractTest.java), [shouldRejectTheRequestWhenTheIdempotencyKeyIsInvalid()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionHttpContractTest.java), [shouldReturnABusinessCodeAndCorrelationIdentifierWhenAnApplicationRuleRejectsTheRequest()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionHttpContractTest.java)
 
-Additional session evidence: [shouldCreateSessionWithDefaultsWhenOnlyRequiredFieldsAreProvided()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionHttpContractTest.java), [shouldReturnNotFoundWhenReadingUnknownSession()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionHttpContractTest.java), [shouldReturnNotFoundWhenReplacingUnknownSession()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionHttpContractTest.java), [shouldPreserveOwnersPurchaseWhenAnotherMerchantAttemptsReplacement()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionHttpContractTest.java)
+Additional session evidence: [shouldCreateASessionWithDefaultOptionalFieldsWhenOnlyRequiredPurchaseFieldsAreProvided()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionHttpContractTest.java), [shouldReturnSessionNotFoundWhenReadingAnUnknownSession()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionHttpContractTest.java), [shouldReturnSessionNotFoundWhenReplacingAnUnknownSession()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionHttpContractTest.java), [shouldPreserveTheOwnersPurchaseWhenAnotherMerchantAttemptsToReplaceIt()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionHttpContractTest.java)
 
 ## Adopted engineering constraints
 
