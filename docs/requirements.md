@@ -271,6 +271,14 @@ Status: Adopted
 
 JUnit runs classes concurrently with two workers and keeps methods sequential. [Payment test configuration](../payments-app/src/test/resources/junit-platform.properties) and [simulator test configuration](../downstream-simulator/src/test/resources/junit-platform.properties) use the same policy. Integration suites allocate independent UUID table names and random HTTP ports and delete their own tables after the class completes.
 
+### REQ-ENG-007 — Cohesive methods and declarative technical capabilities
+
+Status: Adopted
+
+Each method expresses one cohesive operation at one abstraction level. Application services coordinate named use-case steps, aggregates own business invariants and adapters own persistence details. Prefer supported framework annotations for technical capabilities and composed annotations for reusable policies with verified semantics. Preserve meaningful concurrency/error paths when extracting methods.
+
+References: [Agent rules](../AGENTS.md), [contribution guidance](../CONTRIBUTING.md), [service method assessment](service-method-assessment.md).
+
 ## Planned payment workflow
 
 ### REQ-AUT-001 — Durable authorizations and immutable snapshots

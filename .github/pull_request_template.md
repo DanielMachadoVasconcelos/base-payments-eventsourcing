@@ -16,3 +16,5 @@
 ## Framework reuse
 
 - [ ] Existing framework/SDK capabilities and compatible Spring Boot starters were evaluated. Any custom technical code explains the alternatives and the concrete capability gap.
+
+- [ ] Methods expose cohesive responsibilities at one abstraction level, with business decisions and technical capabilities in their owning layers.

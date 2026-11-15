@@ -28,6 +28,13 @@ For a new/changed requirement, behavior, HTTP contract or architecture decision,
 - Use framework or SDK facilities for retries, backoff, timeouts, scheduling and concurrency where they provide the required semantics. Establish whether coordination is local or distributed and whether idempotency covers a transaction or the complete HTTP command before choosing it.
 - Add custom technical code only for a demonstrated gap. Explain the alternatives considered and the missing guarantee in the PR. Keep that code minimal and cohesive. Business decisions still belong in the domain, and existing repository constraints continue to apply.
 
+## Keep methods cohesive
+
+- Keep methods small and focused on one operation at one abstraction level. Application entry methods should expose named use-case steps. Extract a helper or collaborator when it gives a cohesive responsibility a clear name and reduces cognitive load.
+- Keep business invariants in aggregates, use-case decisions in application services and persistence/SDK details in adapters. Preserve meaningful failure paths, atomicity, response replay and business timestamps during extraction.
+- Prefer supported declarative framework capabilities for cross-cutting technical policies. Use composed annotations for reusable policies supported by the framework, with explicit semantics and verified proxy behavior. An annotation must not hide a new custom coordination engine or business workflow.
+- Avoid arbitrary line limits, one-line helper proliferation and dependency containers that disguise responsibility counts. Follow the [service method assessment](docs/service-method-assessment.md) when reviewing orchestration methods.
+
 ## Finish honestly
 
 Implement only the requested scope. Distinguish implemented behavior, test evidence and planned guarantees. Standalone simulator behavior does not prove a payment-app workflow.

@@ -41,6 +41,14 @@ Verify semantics before selecting a capability. Check local versus distributed c
 
 Custom technical code requires a concrete gap in existing capabilities. Describe the requirement, alternatives evaluated and missing guarantee in the PR, then implement the smallest cohesive adaptation. Preserve aggregate-owned business rules and the repository's Compose, dependency and storage constraints.
 
+## Cohesive service methods
+
+Each method should express one operation at one abstraction level. Keep application entry methods readable as named use-case steps. Extract helpers or collaborators where they reveal a cohesive responsibility and reduce cognitive load. Keep aggregate business decisions and adapter infrastructure details at their existing boundaries.
+
+Prefer supported framework annotations for cross-cutting capabilities. Composed annotations are appropriate for genuinely reused technical policies when the framework supports them. Verify proxy boundaries, self-invocation and error matching. Keep business choices and consistency recovery explicit in their owning layer.
+
+Use the [ChangePurchaseService assessment](docs/service-method-assessment.md) as the review example. Method size is a readability signal, without a fixed line-count target. Preserve behavior and persistence contracts when refactoring.
+
 ## BDD and verification
 
 JUnit runs classes concurrently with two workers and methods sequentially. Each integration class must own its table and cleanup. Architecture checks enforce direct layer dependencies.
