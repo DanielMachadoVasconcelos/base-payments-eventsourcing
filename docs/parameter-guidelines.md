@@ -10,7 +10,7 @@ The numeric limit is a **project convention**, not a universal rule attributed t
 
 Generated MapStruct signatures are excluded. Records and Lombok-generated constructors need cohesion review: do not create ServiceDependencies merely to hide responsibility.
 
-Current local exceptions are HTTP binding in PaymentSessionController and SimulatorController, plus the SimulatorOperationProcessor infrastructure constructor. Keep the reason next to the suppression; do not expand it to a package.
+Current local exceptions are HTTP binding in PaymentSessionController and SimulatorController, plus the SimulatorOperationProcessor infrastructure constructor and the SessionCommandCoordinator constructor (two collaborators and two independent timing settings). Keep the reason next to the suppression; do not expand it to a package.
 
 ## Model a concept, not an argument bag
 

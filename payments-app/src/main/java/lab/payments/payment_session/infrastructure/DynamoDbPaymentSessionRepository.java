@@ -86,6 +86,22 @@ public class DynamoDbPaymentSessionRepository implements PaymentSessionRepositor
         writes.addAll(projectionWrites(commit));
         writes.add(completedResultWrite(commit));
         writes.addAll(referenceWrites(commit));
+        var reservation = commit.completion().reservation();
+        if (reservation != null) {
+            var release =
+                    Delete.builder()
+                            .tableName(dynamo.table)
+                            .key(Dynamo.key(commit.idempotencyPartitionKey(), "PROCESSING"))
+                            .conditionExpression("leaseOwner = :owner AND leaseUntil > :now")
+                            .expressionAttributeValues(
+                                    Map.of(
+                                            ":owner", Dynamo.stringAttribute(reservation.owner()),
+                                            ":now",
+                                                    Dynamo.numberAttribute(
+                                                            System.currentTimeMillis())))
+                            .build();
+            writes.add(TransactWriteItem.builder().delete(release).build());
+        }
         return writes;
     }
 

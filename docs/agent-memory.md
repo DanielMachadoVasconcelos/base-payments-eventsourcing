@@ -18,6 +18,7 @@ A short handover, not a transcript. [Requirements](requirements.md) own scope/ev
 
 - GET replays events, not HEAD. HEAD is written atomically but is not the read source.
 - Stored event compatibility is tested. Internal refactoring must not silently change JSON or idempotency addresses.
+- PUT replacements reserve a durable PROCESSING item beside the existing RESULT. Default lease is 30s without renewal; waiters poll for up to 3s, returning the completed response, 409 for conflicting content or 503 on timeout. Conditional ownership deletion fences the final transaction.
 - Completed retries use the persisted winner's payload/identifiers, not a losing caller's new session.
 - Payload uploads are separate from the session transaction. Crashes/conflicts can leave orphans; cleanup is absent.
 - Chunking buffers complete documents in memory. Large merchantReference metadata is not offloaded from every summary. Do not claim infinite request sizes.
@@ -28,6 +29,8 @@ A short handover, not a transcript. [Requirements](requirements.md) own scope/ev
 
 ## Next boundary, not an instruction
 
-Durable authorization intent/recovery is next. Lease fencing, application order uniqueness, outbox, 49-hour post-authorization expiry, retained idempotency cleanup and isolated full projection rebuild still need implementation and evidence.
+Durable authorization intent/recovery is next. Authorization/recovery lease fencing, application order uniqueness, outbox, 49-hour post-authorization expiry, retained idempotency cleanup and isolated full projection rebuild still need implementation and evidence.
+
+Replacement takeover is tested with independent adapters and forced lease expiry, without stopping application processes. WireMock authorization scenarios remain planned in docs/authorization-test-plan.md.
 
 Only implement the current authorized scope. Update this page when these facts change; keep it short.

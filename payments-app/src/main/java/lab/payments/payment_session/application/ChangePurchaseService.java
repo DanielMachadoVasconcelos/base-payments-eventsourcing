@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class ChangePurchaseService {
     private final PaymentSessionEventStore eventStore;
+    private final SessionCommandCoordinator coordinator;
     private final PurchasePayloadStore purchasePayloadStore;
     private final PaymentSessionResultMapper resultMapper;
     private final BusinessClock businessClock;
@@ -30,10 +31,15 @@ public class ChangePurchaseService {
                                         command.purchase(),
                                         "expectedVersion",
                                         context.expectedVersion())));
-        var previous = eventStore.previouslyCompletedResponse(idempotency);
-        if (previous.isPresent()) {
-            return resultMapper.fromStoredResult(previous.get(), merchantId);
-        }
+        var persistedResult =
+                coordinator.execute(idempotency, reservation -> replace(command, reservation));
+        return resultMapper.fromStoredResult(persistedResult, merchantId);
+    }
+
+    private StoredSessionResult replace(
+            ChangePurchaseCommand command, SessionCommandReservation reservation) {
+        var context = command.context();
+        var merchantId = context.identity().merchantId();
         var session =
                 eventStore
                         .load(context.identity())
@@ -47,11 +53,11 @@ public class ChangePurchaseService {
                         metadata),
                 expirationPolicy);
         var view = PaymentSessionView.from(session, command.purchase());
-        var persistedResult =
-                eventStore.append(
-                        session,
-                        new CompletedSessionCommand(
-                                idempotency, resultMapper.toStoredResult(view, payloadId)));
-        return resultMapper.fromStoredResult(persistedResult, merchantId);
+        return eventStore.append(
+                session,
+                new CompletedSessionCommand(
+                        reservation.request(),
+                        resultMapper.toStoredResult(view, payloadId),
+                        reservation));
     }
 }

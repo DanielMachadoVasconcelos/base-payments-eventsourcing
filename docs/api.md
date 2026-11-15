@@ -32,6 +32,10 @@ PUT replaces the whole purchase; omitted optional fields return to defaults. Use
 
 A same-key, same-command retry reproduces its original result even after later changes. Different content with the same scoped key conflicts. Keys are scoped by merchant, operation and API version. This is not authentication.
 
+Concurrent PUT requests sharing a scoped idempotency key wait for the active replacement to complete. Identical content returns the persisted response and ETag; different content returns 409 IDEMPOTENCY_KEY_CONFLICT after completion. This coordinates one command key rather than all commands targeting a session.
+
+Waiting defaults to 3000 ms (`SYNC_WAIT_MS`), polling every 25 ms (`COMMAND_POLL_MS`). A waiter exceeding its deadline receives 503 SESSION_COMMAND_IN_PROGRESS and can retry the same key. It does not cancel the owner. Each replacement owner holds a 30000 ms lease (`LEASE_MS`); there is no lease renewal. An owner that exceeds its lease cannot commit and must retry. These deadlines use wall/monotonic clocks independently of the business clock.
+
 ## Errors as implemented
 
 Errors use ProblemDetail with code and correlationId.

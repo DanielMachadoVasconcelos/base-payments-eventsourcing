@@ -107,6 +107,30 @@ Implementation: [DynamoDbPaymentSessionRepository.java](../payments-app/src/main
 
 Evidence: [shouldReturnTheSameSessionForEverySuccessfulResponseWhenIdenticalCreationCommandsRace()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionComposeIntegrationTest.java)
 
+### REQ-IDEM-006 — Wait for a concurrent purchase replacement
+
+Status: Verified
+
+Acceptance: Given a purchase replacement holding its scoped key, when an identical concurrent replacement arrives, then it waits within a bounded deadline and returns the original successful response with no additional event. Different content waits for completion and returns 409 IDEMPOTENCY_KEY_CONFLICT. Waiting beyond the deadline returns 503 and preserves the active owner.
+
+Implementation: [SessionCommandCoordinator.java](../payments-app/src/main/java/lab/payments/payment_session/application/SessionCommandCoordinator.java)
+
+Evidence: [shouldReturnTheOriginalReplacementResultWhenAnIdenticalConcurrentRequestWaitsForCompletion()](../payments-app/src/test/java/lab/payments/payment_session/ConcurrentPurchaseReplacementTest.java), [shouldRejectConflictingContentWhenAConcurrentRequestWaitsForTheSameIdempotencyKey()](../payments-app/src/test/java/lab/payments/payment_session/ConcurrentPurchaseReplacementTest.java), [shouldPreserveTheActiveOwnerWhenAConcurrentRequestExceedsItsWaitDeadline()](../payments-app/src/test/java/lab/payments/payment_session/ConcurrentPurchaseReplacementTest.java)
+
+### REQ-IDEM-007 — Fence expired replacement owners
+
+Status: Verified
+
+Acceptance: Given an expired processing reservation, when another owner takes over, then the old owner cannot commit events, projections or results or release the new reservation. Business rejection releases its reservation; uncertain persistence outcomes leave the reservation to expire. Scope is purchase replacement with no external business effects.
+
+Implementation: [DynamoDbSessionCommandReservations.java](../payments-app/src/main/java/lab/payments/payment_session/infrastructure/DynamoDbSessionCommandReservations.java), [DynamoDbPaymentSessionRepository.java](../payments-app/src/main/java/lab/payments/payment_session/infrastructure/DynamoDbPaymentSessionRepository.java)
+
+Evidence: [shouldFenceTheOldWriterAndPreserveTheNewReservationWhenAnExpiredCommandIsTakenOver()](../payments-app/src/test/java/lab/payments/payment_session/SessionCommandReservationIntegrationTest.java), [shouldRejectAnExpiredWriterWhenItsReservationHasElapsedWithoutASuccessor()](../payments-app/src/test/java/lab/payments/payment_session/SessionCommandReservationIntegrationTest.java), [shouldReleaseTheReservationForCorrectionWhenAPurchaseReplacementIsRejected()](../payments-app/src/test/java/lab/payments/payment_session/SessionCommandReservationIntegrationTest.java)
+
+The takeover test uses independent adapter instances against real DynamoDB Local and expires the lease attribute explicitly. Actual process termination and two running payment applications remain REQ-TEST-001.
+
+Uncertain-outcome evidence: [shouldReplayTheCompletedReplacementWhenTheCommitResponseIsLost()](../payments-app/src/test/java/lab/payments/payment_session/ConcurrentPurchaseReplacementTest.java), [shouldRetainOwnershipUntilRetryTakeoverWhenPersistenceFailsBeforeCompletion()](../payments-app/src/test/java/lab/payments/payment_session/ConcurrentPurchaseReplacementTest.java). These inject SDK failures around real persistence and explicitly expire the reservation for takeover.
+
 ### REQ-EVT-001 — Replay stored facts without renewing them
 
 Status: Verified
@@ -242,6 +266,8 @@ JUnit runs classes concurrently with two workers and keeps methods sequential. [
 ### REQ-AUT-001 — Durable authorizations and immutable snapshots
 
 Status: Planned
+
+See the [planned WireMock scenarios](authorization-test-plan.md) for concurrent slow-Issuer acceptance tests.
 
 Acceptance target: Persist authorization intent, external identities and both channel tokens before calling the Issuer; preserve old valid authorizations after purchase replacement.
 
