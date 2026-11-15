@@ -279,6 +279,14 @@ Each method expresses one cohesive operation at one abstraction level. Applicati
 
 References: [Agent rules](../AGENTS.md), [contribution guidance](../CONTRIBUTING.md), [implemented service decomposition](service-method-assessment.md). ChangePurchaseService uses named cohesive steps and one final response reconstruction. IdempotencyRequest owns its operation-specific descriptor factory. REQ-IDEM-008/009 retain the behavioral evidence for concurrency and retry boundaries.
 
+### REQ-ENG-008 — Readable aligned Java layout
+
+Status: Adopted
+
+Use four spaces, align wrapped declaration parameters beneath the first parameter and align wrapped method-chain dots with the first call's dot. Preserve the receiver/first-call line and intentional readable line breaks. [EditorConfig](../.editorconfig) supplies IntelliJ alignment settings. [Spotless](../build.gradle) cleans unused imports, trailing whitespace and final newlines. Alignment/wrapping is an IDE and review convention.
+
+References: [Contribution guide](../CONTRIBUTING.md), [reference class](../payments-app/src/main/java/lab/payments/payment_session/application/ChangePurchaseService.java).
+
 ## Planned payment workflow
 
 ### REQ-AUT-001 — Durable authorizations and immutable snapshots

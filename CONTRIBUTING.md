@@ -49,6 +49,14 @@ Prefer supported framework annotations for cross-cutting capabilities. Composed 
 
 Use the [ChangePurchaseService assessment](docs/service-method-assessment.md) as the review example. Method size is a readability signal, without a fixed line-count target. Preserve behavior and persistence contracts when refactoring.
 
+## Java layout
+
+Use four-space indentation and the [ChangePurchaseService](payments-app/src/main/java/lab/payments/payment_session/application/ChangePurchaseService.java) layout as the reference. For multiline declarations, keep the first parameter next to the opening parenthesis and align following parameters beneath it. Keep the receiver and first method call together, then align the dots of subsequent wrapped calls vertically.
+
+The IntelliJ Java properties in [.editorconfig](.editorconfig) enable multiline alignment and preserve intentional line breaks. Use the IDE's EditorConfig support for Java reformatting. Keep short expressions on one line and avoid reformatting unrelated code.
+
+Spotless handles unused imports, trailing whitespace and final newlines. It preserves the authored parameter and chain layout. spotlessCheck does not validate alignment or wrapping. Full Google Java Format was removed because its fixed layout overrides the adopted style.
+
 ## BDD and verification
 
 JUnit runs classes concurrently with two workers and methods sequentially. Each integration class must own its table and cleanup. Architecture checks enforce direct layer dependencies.

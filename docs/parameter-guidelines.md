@@ -12,6 +12,10 @@ Generated MapStruct signatures are excluded. Records and Lombok-generated constr
 
 Current local exceptions are HTTP binding in PaymentSessionController and SimulatorController, plus the SimulatorOperationProcessor infrastructure constructor. Keep the reason next to the suppression; do not expand it to a package.
 
+## Declaration and call layout
+
+Follow the [Java layout guide](../CONTRIBUTING.md) and [.editorconfig](../.editorconfig). Keep the first parameter on the declaration line and align wrapped parameters beneath it. In wrapped chains, keep the receiver and first call together and align continuation dots with the first dot. ChangePurchaseService is the reference example.
+
 ## Model a concept, not an argument bag
 
 | Type | Meaning |

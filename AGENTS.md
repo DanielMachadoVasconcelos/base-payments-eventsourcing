@@ -28,6 +28,12 @@ For a new/changed requirement, behavior, HTTP contract or architecture decision,
 - Use framework or SDK facilities for retries, backoff, timeouts, scheduling and concurrency where they provide the required semantics. Establish whether coordination is local or distributed and whether idempotency covers a transaction or the complete HTTP command before choosing it.
 - Add custom technical code only for a demonstrated gap. Explain the alternatives considered and the missing guarantee in the PR. Keep that code minimal and cohesive. Business decisions still belong in the domain, and existing repository constraints continue to apply.
 
+## Java layout
+
+- Follow the existing ChangePurchaseService layout as the reference for new and edited Java. Use four spaces. Keep the first declaration parameter beside the opening parenthesis and align subsequent parameters beneath it when wrapping.
+- Keep the receiver and first call on the same line. Align subsequent chained-call dots vertically with the first dot when wrapping. Preserve intentional readable line breaks and keep short expressions on one line.
+- Use the IntelliJ Java settings in .editorconfig. Spotless maintains unused imports, trailing whitespace and final newlines. Parameter/chain alignment is reviewed and applied by the IDE rather than enforced by spotlessCheck. Do not reintroduce a formatter that overrides this style or mass-reformat unrelated files.
+
 ## Keep methods cohesive
 
 - Keep methods small and focused on one operation at one abstraction level. Application entry methods should expose named use-case steps. Extract a helper or collaborator when it gives a cohesive responsibility a clear name and reduces cognitive load.

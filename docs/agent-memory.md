@@ -8,6 +8,7 @@ A short handover, not a transcript. [Requirements](requirements.md) own scope/ev
 - The working slice is create/read/replace session, event replay, chunked immutable purchase storage and completed-command idempotency.
 - The simulator persists independent effects. Payments-app does not call it yet.
 - Inspect existing Spring Boot starters, Spring Framework and SDK/service capabilities before writing technical helpers. Prefer supported framework features and maintained libraries, and document any custom-code gap in the PR. See AGENTS.md and CONTRIBUTING.md.
+- Java layout follows the user-formatted ChangePurchaseService: aligned wrapped parameters and chain dots, with receiver/first call together. IntelliJ .editorconfig carries alignment settings. Spotless only cleans imports/whitespace and does not enforce wrapping.
 - Keep orchestration methods small and at one abstraction level. Use named cohesive steps and supported declarative policies. ChangePurchaseService now resolves StoredSessionResult internally and maps the response once, with named replacement, aggregate-application and concurrent-result recovery steps. See docs/service-method-assessment.md.
 - Use DDD names, aggregate commands, injected JSON mapping, MapStruct, records and restrained Lombok. Follow [parameter rules](parameter-guidelines.md).
 - Compose is the only dependency definition. Shared common code is source compiled into both modules.

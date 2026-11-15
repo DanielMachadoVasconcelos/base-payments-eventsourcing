@@ -55,9 +55,9 @@ DynamoDB uses port 8000 and a persistent Compose volume. Ordinary `docker compos
 Python 3.9+ is needed only for the documentation checks; the application uses Java.
 
 ```bash
-./gradlew check                 # unit tests, formatting, parameter rules
+./gradlew check                 # unit tests, source cleanup, parameter rules
 ./gradlew integrationTest       # starts DynamoDB through the shared Compose file
-./gradlew spotlessApply         # formats Java
+./gradlew spotlessApply         # removes unused imports and normalizes whitespace
 python3 scripts/check-docs.py   # local documentation links, IDs and evidence
 ```
 
