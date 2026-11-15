@@ -1,6 +1,7 @@
 package lab.payments.payment_session.infrastructure;
 
 import java.util.Map;
+
 import lab.common.JsonDocumentCodec;
 import lab.payments.payment_session.domain.PaymentSessionEvent;
 import lombok.RequiredArgsConstructor;

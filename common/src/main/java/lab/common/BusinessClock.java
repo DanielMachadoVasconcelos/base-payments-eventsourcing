@@ -2,9 +2,12 @@ package lab.common;
 
 import java.time.Instant;
 import java.util.concurrent.atomic.AtomicReference;
+
 import org.springframework.stereotype.Component;
 
-/** Deliberately separate from System.currentTimeMillis(), used for leases and network timeouts. */
+/**
+ * Deliberately separate from System.currentTimeMillis(), used for leases and network timeouts.
+ */
 @Component
 public class BusinessClock {
     private final AtomicReference<Instant> fixed = new AtomicReference<>();

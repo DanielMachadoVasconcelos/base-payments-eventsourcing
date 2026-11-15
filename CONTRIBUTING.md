@@ -53,7 +53,15 @@ Use the [ChangePurchaseService assessment](docs/service-method-assessment.md) as
 
 Use four-space indentation and the [ChangePurchaseService](payments-app/src/main/java/lab/payments/payment_session/application/ChangePurchaseService.java) layout as the reference. For multiline declarations, keep the first parameter next to the opening parenthesis and align following parameters beneath it. Keep the receiver and first method call together, then align the dots of subsequent wrapped calls vertically.
 
-The IntelliJ Java properties in [.editorconfig](.editorconfig) enable multiline alignment and preserve intentional line breaks. Use the IDE's EditorConfig support for Java reformatting. Keep short expressions on one line and avoid reformatting unrelated code.
+The IntelliJ Java properties in [.editorconfig](.editorconfig) enable multiline alignment and preserve intentional line breaks. The shared [IntelliJ profile](config/formatting/intellij-java.xml) supplies the matching Java wrapping and indentation policy with a 120-column right margin. Import it into IntelliJ Code Style or pass it to the native command-line formatter. Use the IDE's EditorConfig support for Java reformatting. Keep short expressions on one line and avoid reformatting unrelated code.
+
+The production and test Java sources have been migrated with the native IntelliJ formatter. To format the same source roots again, use the formatter supplied by your IntelliJ installation:
+
+```bash
+format.sh -s config/formatting/intellij-java.xml -r -m '*.java' common/src payments-app/src downstream-simulator/src
+```
+
+Add `-d` for a dry-run validation. Run it from the repository root. The CLI needs an available IDE instance/configuration as described in [JetBrains documentation](https://www.jetbrains.com/help/idea/command-line-formatter.html). Existing intentional breaks are retained. Legacy hard wraps were normalized during the initial migration before restoring the reference class's deliberate breaks.
 
 Spotless handles unused imports, trailing whitespace and final newlines. It preserves the authored parameter and chain layout. spotlessCheck does not validate alignment or wrapping. Full Google Java Format was removed because its fixed layout overrides the adopted style.
 

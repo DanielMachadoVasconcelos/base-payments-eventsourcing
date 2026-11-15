@@ -1,6 +1,7 @@
 package lab.payments.payment_session.application;
 
 import java.util.Optional;
+
 import lab.payments.payment_session.domain.*;
 
 public interface PaymentSessionRepository {
@@ -8,5 +9,6 @@ public interface PaymentSessionRepository {
 
     Optional<StoredSessionResult> idempotentResponse(IdempotencyRequest request);
 
-    StoredSessionResult save(PaymentSessionAggregate aggregate, CompletedSessionCommand completion);
+    StoredSessionResult save(PaymentSessionAggregate aggregate,
+                             CompletedSessionCommand completion);
 }

@@ -285,7 +285,7 @@ Status: Adopted
 
 Use four spaces, align wrapped declaration parameters beneath the first parameter and align wrapped method-chain dots with the first call's dot. Preserve the receiver/first-call line and intentional readable line breaks. [EditorConfig](../.editorconfig) supplies IntelliJ alignment settings. [Spotless](../build.gradle) cleans unused imports, trailing whitespace and final newlines. Alignment/wrapping is an IDE and review convention.
 
-References: [Contribution guide](../CONTRIBUTING.md), [reference class](../payments-app/src/main/java/lab/payments/payment_session/application/ChangePurchaseService.java).
+References: [Contribution guide](../CONTRIBUTING.md), [shared IntelliJ profile](../config/formatting/intellij-java.xml), [reference class](../payments-app/src/main/java/lab/payments/payment_session/application/ChangePurchaseService.java). Production and test Java sources have been processed with the native formatter. The profile uses a 120-column margin and preserves future intentional line breaks.
 
 ## Planned payment workflow
 

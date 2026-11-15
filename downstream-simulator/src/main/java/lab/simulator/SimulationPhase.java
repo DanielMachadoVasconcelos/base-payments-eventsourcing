@@ -3,10 +3,7 @@ package lab.simulator;
 import lab.common.PaymentValidationException;
 
 public enum SimulationPhase {
-    AUTHORIZE,
-    CONFIRM,
-    ORDER,
-    WEBHOOK;
+    AUTHORIZE, CONFIRM, ORDER, WEBHOOK;
 
     public static SimulationPhase parse(String value) {
         try {

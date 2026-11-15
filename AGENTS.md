@@ -32,7 +32,7 @@ For a new/changed requirement, behavior, HTTP contract or architecture decision,
 
 - Follow the existing ChangePurchaseService layout as the reference for new and edited Java. Use four spaces. Keep the first declaration parameter beside the opening parenthesis and align subsequent parameters beneath it when wrapping.
 - Keep the receiver and first call on the same line. Align subsequent chained-call dots vertically with the first dot when wrapping. Preserve intentional readable line breaks and keep short expressions on one line.
-- Use the IntelliJ Java settings in .editorconfig. Spotless maintains unused imports, trailing whitespace and final newlines. Parameter/chain alignment is reviewed and applied by the IDE rather than enforced by spotlessCheck. Do not reintroduce a formatter that overrides this style or mass-reformat unrelated files.
+- Use the IntelliJ Java settings in .editorconfig and config/formatting/intellij-java.xml. The profile uses a 120-column right margin. Spotless maintains unused imports, trailing whitespace and final newlines. Parameter/chain alignment is reviewed and applied by the IDE rather than enforced by spotlessCheck. Do not reintroduce a formatter that overrides this style or mass-reformat unrelated files.
 
 ## Keep methods cohesive
 

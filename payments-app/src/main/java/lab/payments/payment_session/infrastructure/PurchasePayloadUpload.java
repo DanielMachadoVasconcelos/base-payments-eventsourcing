@@ -4,9 +4,12 @@ import static lab.common.Json.sha256;
 
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
+
 import lab.payments.payment_session.domain.MerchantId;
 
-/** Request-local upload descriptor; its bytes are never stored on a singleton component. */
+/**
+ * Request-local upload descriptor; its bytes are never stored on a singleton component.
+ */
 record PurchasePayloadUpload(Address address, byte[] content, String checksum) {
     static final int CHUNK_BYTES = 200 * 1024;
 
@@ -16,11 +19,10 @@ record PurchasePayloadUpload(Address address, byte[] content, String checksum) {
         }
     }
 
-    static PurchasePayloadUpload start(MerchantId merchantId, byte[] content) {
-        return new PurchasePayloadUpload(
-                new Address(merchantId, UUID.randomUUID().toString()),
-                content,
-                sha256(new String(content, StandardCharsets.UTF_8)));
+    static PurchasePayloadUpload start(MerchantId merchantId,
+                                       byte[] content) {
+        return new PurchasePayloadUpload(new Address(merchantId, UUID.randomUUID().toString()), content,
+                                         sha256(new String(content, StandardCharsets.UTF_8)));
     }
 
     int totalChunks() {

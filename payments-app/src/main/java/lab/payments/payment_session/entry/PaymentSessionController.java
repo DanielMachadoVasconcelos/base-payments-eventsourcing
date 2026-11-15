@@ -23,44 +23,35 @@ public class PaymentSessionController {
     private final GetPaymentSessionService getPaymentSessionService;
 
     @PostMapping
-    public ResponseEntity<PaymentSessionResponse> create(
-            @RequestHeader("X-Merchant-Id") String merchantId,
-            @RequestHeader("Idempotency-Key") String idempotencyKey,
-            @RequestBody CreatePaymentSessionRequest request) {
+    public ResponseEntity<PaymentSessionResponse> create(@RequestHeader("X-Merchant-Id") String merchantId,
+                                                         @RequestHeader("Idempotency-Key") String idempotencyKey,
+                                                         @RequestBody CreatePaymentSessionRequest request) {
         var command = requestMapper.create(merchantId, idempotencyKey, request);
         var session = createPaymentSessionService.create(command);
         return responseMapper.created(session);
     }
 
     @GetMapping("/{sessionId}")
-    public ResponseEntity<PaymentSessionResponse> get(
-            @RequestHeader("X-Merchant-Id") String merchantId, @PathVariable String sessionId) {
-        var session =
-                getPaymentSessionService.get(
-                        new PaymentSessionIdentity(
-                                new MerchantId(ApiValues.merchant(merchantId)),
-                                new PaymentSessionId(sessionId)));
+    public ResponseEntity<PaymentSessionResponse> get(@RequestHeader("X-Merchant-Id") String merchantId,
+                                                      @PathVariable String sessionId) {
+        var session = getPaymentSessionService.get(
+            new PaymentSessionIdentity(new MerchantId(ApiValues.merchant(merchantId)),
+                                       new PaymentSessionId(sessionId)));
         return responseMapper.ok(session);
     }
 
     // Explicit HTTP binding: headers, route identity and request body are distinct sources.
     @SuppressWarnings("checkstyle:ParameterNumber")
     @PutMapping("/{sessionId}")
-    public ResponseEntity<PaymentSessionResponse> change(
-            @RequestHeader("X-Merchant-Id") String merchantId,
-            @PathVariable String sessionId,
-            @RequestHeader("Idempotency-Key") String idempotencyKey,
-            @RequestHeader("If-Match") String expectedVersion,
-            @RequestBody ChangePurchaseRequest request) {
-        var identity =
-                new PaymentSessionIdentity(
-                        new MerchantId(ApiValues.merchant(merchantId)),
-                        new PaymentSessionId(sessionId));
-        var context =
-                new SessionWriteContext(
-                        identity,
-                        ApiValues.idempotency(idempotencyKey),
-                        ApiValues.expectedVersion(expectedVersion));
+    public ResponseEntity<PaymentSessionResponse> change(@RequestHeader("X-Merchant-Id") String merchantId,
+                                                         @PathVariable String sessionId,
+                                                         @RequestHeader("Idempotency-Key") String idempotencyKey,
+                                                         @RequestHeader("If-Match") String expectedVersion,
+                                                         @RequestBody ChangePurchaseRequest request) {
+        var identity = new PaymentSessionIdentity(new MerchantId(ApiValues.merchant(merchantId)),
+                                                  new PaymentSessionId(sessionId));
+        var context = new SessionWriteContext(identity, ApiValues.idempotency(idempotencyKey),
+                                              ApiValues.expectedVersion(expectedVersion));
         var command = requestMapper.change(context, request);
         var session = changePurchaseService.change(command);
         return responseMapper.ok(session);

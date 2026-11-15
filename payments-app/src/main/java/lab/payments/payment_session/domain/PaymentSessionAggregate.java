@@ -4,7 +4,9 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Owns session decisions. Commands carry intent; policies provide explicit domain rules. */
+/**
+ * Owns session decisions. Commands carry intent; policies provide explicit domain rules.
+ */
 public final class PaymentSessionAggregate {
     private final PaymentSessionIdentity identity;
     private final List<PaymentSessionEvent> uncommittedEvents = new ArrayList<>();
@@ -15,25 +17,18 @@ public final class PaymentSessionAggregate {
         this.identity = identity;
     }
 
-    public static PaymentSessionAggregate create(
-            OpenPaymentSession command, SessionExpirationPolicy expirationPolicy) {
+    public static PaymentSessionAggregate create(OpenPaymentSession command,
+                                                 SessionExpirationPolicy expirationPolicy) {
         var session = new PaymentSessionAggregate(command.identity());
         var activity = SessionActivity.start(command.metadata().occurredAt(), expirationPolicy);
-        var snapshot =
-                new PaymentSessionSnapshot(
-                        command.purchase(), "OPEN", activity, activity.expiresAt());
-        session.record(
-                new PaymentSessionEvent(
-                        1,
-                        "PaymentSessionCreated",
-                        command.metadata().occurredAt(),
-                        command.metadata().commandId().value(),
-                        snapshot));
+        var snapshot = new PaymentSessionSnapshot(command.purchase(), "OPEN", activity, activity.expiresAt());
+        session.record(new PaymentSessionEvent(1, "PaymentSessionCreated", command.metadata().occurredAt(),
+                                               command.metadata().commandId().value(), snapshot));
         return session;
     }
 
-    public static PaymentSessionAggregate rehydrate(
-            PaymentSessionIdentity identity, List<PaymentSessionEvent> events) {
+    public static PaymentSessionAggregate rehydrate(PaymentSessionIdentity identity,
+                                                    List<PaymentSessionEvent> events) {
         if (events.isEmpty()) {
             throw new PaymentSessionNotFoundException();
         }
@@ -42,22 +37,14 @@ public final class PaymentSessionAggregate {
         return session;
     }
 
-    public void changePurchase(
-            ChangeSessionPurchase command, SessionExpirationPolicy expirationPolicy) {
+    public void changePurchase(ChangeSessionPurchase command,
+                               SessionExpirationPolicy expirationPolicy) {
         ensureVersionMatches(command.expectedVersion());
         ensurePurchaseCanBeChanged(command.metadata().occurredAt());
-        var activity =
-                snapshot.activity().advance(command.metadata().occurredAt(), expirationPolicy);
-        var changed =
-                new PaymentSessionSnapshot(
-                        command.replacement(), "OPEN", activity, activity.expiresAt());
-        record(
-                new PaymentSessionEvent(
-                        version + 1,
-                        "PurchaseChanged",
-                        command.metadata().occurredAt(),
-                        command.metadata().commandId().value(),
-                        changed));
+        var activity = snapshot.activity().advance(command.metadata().occurredAt(), expirationPolicy);
+        var changed = new PaymentSessionSnapshot(command.replacement(), "OPEN", activity, activity.expiresAt());
+        record(new PaymentSessionEvent(version + 1, "PurchaseChanged", command.metadata().occurredAt(),
+                                       command.metadata().commandId().value(), changed));
     }
 
     private void ensureVersionMatches(long expectedVersion) {

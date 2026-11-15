@@ -7,7 +7,9 @@ import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbBean;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbPartitionKey;
 import software.amazon.awssdk.enhanced.dynamodb.mapper.annotations.DynamoDbSortKey;
 
-/** Enhanced Client needs a bean; immutable HTTP and application contracts use records. */
+/**
+ * Enhanced Client needs a bean; immutable HTTP and application contracts use records.
+ */
 @Getter
 @Setter
 @DynamoDbBean

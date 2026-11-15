@@ -1,6 +1,7 @@
 package lab.payments.configuration;
 
 import java.time.Duration;
+
 import lab.payments.payment_session.domain.SessionExpirationPolicy;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
