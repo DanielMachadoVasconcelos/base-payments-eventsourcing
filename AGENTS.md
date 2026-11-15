@@ -21,6 +21,13 @@ For a new/changed requirement, behavior, HTTP contract or architecture decision,
 - When implementing the future payment workflow, persist intent before external business effects. Never hold a database transaction across an HTTP call.
 - Use specific business failures. Do not add LabException or expose tokens/payloads in routine logs.
 
+## Reuse framework capabilities
+
+- Before writing a technical helper, method, wrapper or coordinator, inspect the existing code, configured Spring Boot starters, Spring Framework APIs and AWS SDK/service capabilities for the required behavior.
+- Prefer an existing supported capability. For a missing capability, prefer an official compatible Spring Boot starter, then a maintained, established library. Use auto-configuration, dependency injection, declarative APIs and generated mapping/accessors to eliminate boilerplate.
+- Use framework or SDK facilities for retries, backoff, timeouts, scheduling and concurrency where they provide the required semantics. Establish whether coordination is local or distributed and whether idempotency covers a transaction or the complete HTTP command before choosing it.
+- Add custom technical code only for a demonstrated gap. Explain the alternatives considered and the missing guarantee in the PR. Keep that code minimal and cohesive. Business decisions still belong in the domain, and existing repository constraints continue to apply.
+
 ## Finish honestly
 
 Implement only the requested scope. Distinguish implemented behavior, test evidence and planned guarantees. Standalone simulator behavior does not prove a payment-app workflow.

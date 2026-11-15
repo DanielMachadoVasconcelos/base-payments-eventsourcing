@@ -31,6 +31,16 @@ Use records for cohesive immutable data, MapStruct for structural boundary mappi
 
 Follow the [parameter rules](docs/parameter-guidelines.md): prefer 0–2 parameters, allow three when cohesive, and justify locally suppressed exceptions.
 
+## Reuse framework capabilities
+
+Before implementing technical behavior, inspect the existing dependency graph, configuration and supported framework/SDK APIs. Prefer capabilities already available in the project. When a dependency is needed, prefer official compatible Spring Boot starters and auto-configuration, followed by maintained, established libraries.
+
+Use declarative framework and SDK support for retries, backoff, timeouts, scheduling and concurrency when its documented guarantees satisfy the requirement. Use injected JSON mapping, MapStruct, records and Lombok for appropriate mechanical code generation. Avoid handwritten boilerplate and wrappers that merely duplicate library APIs.
+
+Verify semantics before selecting a capability. Check local versus distributed coordination, retryable versus permanent errors, transaction versus HTTP-command idempotency, compatibility and persistence contracts. Configure retry budgets across layers to avoid multiplying attempts.
+
+Custom technical code requires a concrete gap in existing capabilities. Describe the requirement, alternatives evaluated and missing guarantee in the PR, then implement the smallest cohesive adaptation. Preserve aggregate-owned business rules and the repository's Compose, dependency and storage constraints.
+
 ## BDD and verification
 
 JUnit runs classes concurrently with two workers and methods sequentially. Each integration class must own its table and cleanup. Architecture checks enforce direct layer dependencies.

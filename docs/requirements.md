@@ -231,11 +231,11 @@ Status: Adopted
 
 Use [compose.yaml](../compose.yaml) for development and integration dependencies. The [Gradle integration task](../build.gradle) starts that same definition and JUnit suites use isolated tables. No Testcontainers.
 
-### REQ-ENG-002 — Domain language and framework-assisted mapping
+### REQ-ENG-002 — Domain language and framework capabilities
 
 Status: Adopted
 
-Follow the [architecture](architecture.md), use domain command/value objects, inject Spring-managed JSON mapping and use [MapStruct configuration](../payments-app/src/main/java/lab/payments/configuration/PaymentMappingConfiguration.java), records and Lombok for appropriate boilerplate. Business decisions remain in the aggregate.
+Follow the [architecture](architecture.md), use domain command/value objects, inject Spring-managed JSON mapping and use [MapStruct configuration](../payments-app/src/main/java/lab/payments/configuration/PaymentMappingConfiguration.java), records and Lombok for appropriate boilerplate. Business decisions remain in the aggregate. Apply the [framework reuse rule](../CONTRIBUTING.md) before adding technical methods, helpers or coordinators. Prefer existing supported capabilities, official compatible Spring Boot starters and maintained libraries. Custom technical code requires a documented capability gap in the PR.
 
 ### REQ-ENG-003 — Cohesive method parameters
 
