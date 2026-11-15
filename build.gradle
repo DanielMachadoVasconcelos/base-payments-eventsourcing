@@ -27,6 +27,8 @@ subprojects {
     apply plugin: 'org.springframework.boot'
     java { toolchain { languageVersion = JavaLanguageVersion.of(25) } }
     sourceSets.main.java.srcDir rootProject.file('common/src/main/java')
+    sourceSets.test.java.srcDir rootProject.file('common/src/test/java')
+    sourceSets.test.resources.srcDir rootProject.file('common/src/test/resources')
     dependencies {
         implementation platform('org.springframework.boot:spring-boot-dependencies:4.1.1')
         implementation platform('software.amazon.awssdk:bom:2.56.0')
@@ -45,12 +47,17 @@ subprojects {
         annotationProcessor 'org.projectlombok:lombok-mapstruct-binding:0.2.0'
         annotationProcessor 'org.mapstruct:mapstruct-processor:1.6.3'
         testImplementation 'org.springframework.boot:spring-boot-starter-test'
+        testImplementation 'org.springframework.boot:spring-boot-docker-compose'
         testImplementation 'com.tngtech.archunit:archunit-junit5:1.4.2'
         testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     }
     tasks.withType(Test).configureEach {
         useJUnitPlatform()
+        // Provision the shared dependency once before parallel module JVMs start.
+        dependsOn rootProject.tasks.named('composeUp')
         maxHeapSize = '768m'
+        workingDir rootProject.projectDir
+        systemProperty 'lab.compose-file', rootProject.file('compose.yaml').absolutePath
         testLogging { events 'failed', 'skipped'; exceptionFormat = 'full' }
     }
     tasks.withType(JavaCompile).configureEach {
@@ -59,15 +66,10 @@ subprojects {
             '-Amapstruct.suppressGeneratorVersionInfoComment=true'
         ]
     }
-    tasks.named('test') { useJUnitPlatform { excludeTags 'compose' } }
-    tasks.register('integrationTest', Test) {
-        description = 'Runs behavior tests against DynamoDB Local managed by Compose'
+    tasks.register('integrationTest') {
+        description = 'Compatibility entry point for the test task, including Compose integration tests'
         group = 'verification'
-        testClassesDirs = sourceSets.test.output.classesDirs
-        classpath = sourceSets.test.runtimeClasspath
-        useJUnitPlatform { includeTags 'compose' }
-        dependsOn rootProject.tasks.named('composeUp'), tasks.named('testClasses')
-        shouldRunAfter tasks.named('test')
+        dependsOn tasks.named('test')
     }
     tasks.named('check') { dependsOn rootProject.tasks.named('spotlessCheck') }
     checkstyle {

@@ -15,16 +15,10 @@ import lab.payments.payment_session.domain.*;
 import lab.payments.payment_session.infrastructure.PaymentSessionDocumentMapper;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.*;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.*;
 import software.amazon.awssdk.services.dynamodb.model.TransactionCanceledException;
 import tools.jackson.databind.ObjectMapper;
 
-@Tag("compose")
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-class PaymentSessionComposeIntegrationTest {
-    private static final String TABLE_NAME = "payments_parameters_test_" + UUID.randomUUID().toString()
-                                                                               .replace("-", "");
+class PaymentSessionComposeIntegrationTest extends PaymentSessionIntegrationTest {
     private final HttpClient httpClient = HttpClient.newHttpClient();
     @Autowired
     private ObjectMapper objectMapper;
@@ -41,19 +35,6 @@ class PaymentSessionComposeIntegrationTest {
     @Autowired
     private PaymentSessionResultMapper resultMapper;
 
-    @Value("${local.server.port}")
-    private int port;
-
-    @DynamicPropertySource
-    static void properties(DynamicPropertyRegistry properties) {
-        properties.add("lab.table", () -> TABLE_NAME);
-        properties.add("lab.workers-enabled", () -> false);
-    }
-
-    @AfterAll
-    static void cleanup(@Autowired Dynamo dynamo) {
-        dynamo.client.deleteTable(request -> request.tableName(TABLE_NAME));
-    }
 
     @Test
     @DisplayName("Should preserve the entire large purchase When the session is read and creation is retried")

@@ -67,9 +67,11 @@ Spotless handles unused imports, trailing whitespace and final newlines. It pres
 
 ## BDD and verification
 
-JUnit runs classes concurrently with two workers and methods sequentially. Each integration class must own its table and cleanup. Architecture checks enforce direct layer dependencies.
+JUnit runs independent classes and methods concurrently, with parallelism and maximum pool size both set to two per module test JVM. Payment integration tests share a WireMock HTTP proxy to real DynamoDB Local. Fault rules match individual sessions and scenario names are unique. Disable automatic WireMock resets and use injected server instances, so parallel methods do not mutate each other's rules or the static default client. No serial-only spy suite is required. Architecture checks enforce direct layer dependencies.
 
-HTTP contract tests use RestTestClient with the full Spring context and a real isolated DynamoDB table through Compose. Use request and response records for valid JSON bodies, typed invalid values for validation cases and raw text for malformed JSON. The MVC-backed contract suite complements live-server concurrency and persistence tests. Live-server failure scenarios use RestTestClient with JdkClientHttpRequestFactory so automatic HTTP status retries cannot hide the first 503 response. Every JUnit test, including parameterized and architecture tests, must declare an explicit `@DisplayName("Should {outcome} When {context}")` and use the matching `should{Outcome}When{Context}` method name. Keep Given/When/Then sections inside behavior tests.
+Extend the shared SpringBootIntegrationTest for full application tests. Compatible classes share a cached Spring context, random server port and UUID test table. The context owns table cleanup through an ordered ContextClosedEvent listener; never delete a shared table in a class-level AfterAll callback. Bean overrides would create a separate context; avoid them when a session-scoped HTTP fault rule can exercise the boundary. Avoid per-class DynamicPropertySource methods or unnecessary configuration differences that fragment the cache. Mapping tests retain their lightweight context.
+
+HTTP contract tests use RestTestClient with the full Spring context and a real isolated DynamoDB table through Compose. Use request and response records for valid JSON bodies, typed invalid values for validation cases and raw text for malformed JSON. The HTTP contract and persistence suites share the same live-server context; the concurrency suite shares that context too. Live-server failure scenarios use RestTestClient with JdkClientHttpRequestFactory so automatic HTTP status retries cannot hide the first 503 response. Every JUnit test, including parameterized and architecture tests, must declare an explicit `@DisplayName("Should {outcome} When {context}")` and use the matching `should{Outcome}When{Context}` method name. Keep Given/When/Then sections inside behavior tests.
 
 Executable behavior tests are JUnit tests; The method name and display name must both explain the outcome and context. A prose feature file alone does not prove a requirement.
 
@@ -78,6 +80,10 @@ Executable behavior tests are JUnit tests; The method name and display name must
 ./gradlew integrationTest
 python3 scripts/check-docs.py
 ```
+
+The standard test task includes integration tests. integrationTest is a compatibility alias of test, so invoking both does not run tests twice. The unused processTest placeholder has been removed; restart coverage remains planned. Reload Gradle in IntelliJ after changing task definitions, then use test for a class or method. Native IDE JUnit runs require the repository root as the working directory.
+
+Keep Docker running. The integration-test profile enables Spring Boot Docker Compose support in tests, starts or reuses DynamoDB and leaves the shared container running. Gradle supplies the root Compose path; native IDE runs resolve compose.yaml from the working directory. Gradle runs the shared composeUp task once before the parallel module JVMs, avoiding competing cold container creation. This also runs for filtered Gradle test selections. Plain unit tests run directly through native IDE JUnit without starting Spring or Docker.
 
 Compose is the single infrastructure definition. Do not add Testcontainers or an independent test-only dependency stack. Keep test tables isolated. Do not remove the developer's Compose volume during tests.
 

@@ -1,0 +1,11 @@
+spring:
+  docker:
+    compose:
+      enabled: true
+      file: ${lab.compose-file:compose.yaml}
+      skip:
+        in-tests: false
+      lifecycle-management: start-only
+      start:
+        arguments:
+          - dynamodb

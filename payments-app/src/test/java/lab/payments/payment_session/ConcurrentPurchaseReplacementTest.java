@@ -1,64 +1,42 @@
 package lab.payments.payment_session;
 
+import static com.github.tomakehurst.wiremock.client.WireMock.*;
+import static com.github.tomakehurst.wiremock.stubbing.Scenario.STARTED;
+import static lab.common.Json.sha256;
 import static org.assertj.core.api.Assertions.*;
 import static org.awaitility.Awaitility.await;
-import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.*;
+import static org.springframework.test.web.servlet.client.RestTestClient.*;
 
 import java.time.Duration;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicInteger;
 
+import com.github.tomakehurst.wiremock.client.MappingBuilder;
+import com.github.tomakehurst.wiremock.client.ResponseDefinitionBuilder;
+import com.github.tomakehurst.wiremock.matching.RequestPatternBuilder;
 import lab.common.Dynamo;
-import lab.payments.payment_session.application.*;
 import lab.payments.payment_session.entry.*;
 import org.junit.jupiter.api.*;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
-import org.springframework.http.client.JdkClientHttpRequestFactory;
-import org.springframework.test.context.*;
-import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
-import org.springframework.test.web.servlet.client.RestTestClient;
-import software.amazon.awssdk.core.exception.SdkClientException;
-import software.amazon.awssdk.services.dynamodb.model.CancellationReason;
-import software.amazon.awssdk.services.dynamodb.model.TransactionCanceledException;
+import tools.jackson.databind.ObjectMapper;
 
-@Tag("compose")
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-class ConcurrentPurchaseReplacementTest {
-    private static final String TABLE = "payments_concurrent_" + UUID.randomUUID().toString().replace("-", "");
+class ConcurrentPurchaseReplacementTest extends PaymentSessionIntegrationTest {
     private static final String MERCHANT = "concurrent-merchant";
     private static final Duration TEST_TIMEOUT = Duration.ofSeconds(8);
-    @MockitoSpyBean
+    @Autowired
     private Dynamo dynamo;
-    @MockitoSpyBean
-    private PaymentSessionEventStore eventStore;
+    @Autowired
+    private ObjectMapper json;
 
-    @Value("${local.server.port}")
-    private int port;
-
-    private RestTestClient client;
 
     @BeforeEach
-    void configureClient() {
-        var requestFactory = new JdkClientHttpRequestFactory();
-        requestFactory.setReadTimeout(Duration.ofSeconds(12));
-        client = RestTestClient.bindToServer(requestFactory).baseUrl("http://localhost:" + port)
-                               .defaultHeader("X-Merchant-Id", MERCHANT).build();
-    }
-
-    @DynamicPropertySource
-    static void properties(DynamicPropertyRegistry properties) {
-        properties.add("lab.table", () -> TABLE);
-    }
-
-    @AfterAll
-    static void cleanup(@org.springframework.beans.factory.annotation.Autowired Dynamo dynamo) {
-        dynamo.client.deleteTable(request -> request.tableName(TABLE));
+    void configureMerchant() {
+        client = client.mutate().defaultHeader("X-Merchant-Id", MERCHANT).build();
     }
 
     @Test
@@ -68,17 +46,18 @@ class ConcurrentPurchaseReplacementTest {
         var session = createSession();
         String key = newKey();
         var purchase = purchase(15000);
-        try (var executor = Executors.newVirtualThreadPerTaskExecutor(); var commits = controlConcurrentCommits()) {
+        var scenario = controlConcurrentCommits(session);
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
             var first = CompletableFuture.supplyAsync(() -> replace(session, key, purchase), executor);
-            await().atMost(TEST_TIMEOUT).until(commits.firstPrepared()::isDone);
+            await().atMost(TEST_TIMEOUT).until(() -> scenarioHasState(scenario, "first-prepared"));
 
             // When
             var second = CompletableFuture.supplyAsync(() -> replace(session, key, purchase), executor);
-            await().atMost(TEST_TIMEOUT).until(commits.secondPrepared()::isDone);
+            await().atMost(TEST_TIMEOUT).until(() -> scenarioHasState(scenario, "both-prepared"));
             assertThat(first).isNotDone();
             assertThat(second).isNotDone();
+            assertPreparedCommands(session);
             assertStreamVersion(session, 1);
-            commits.resume();
 
             // Then
             var winner = successfulReplacement(first.get(8, TimeUnit.SECONDS));
@@ -95,15 +74,18 @@ class ConcurrentPurchaseReplacementTest {
         // Given
         var session = createSession();
         String key = newKey();
-        try (var executor = Executors.newVirtualThreadPerTaskExecutor(); var commits = controlConcurrentCommits()) {
+        var scenario = controlConcurrentCommits(session);
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
             var first = CompletableFuture.supplyAsync(() -> replace(session, key, purchase(15000)), executor);
-            await().atMost(TEST_TIMEOUT).until(commits.firstPrepared()::isDone);
+            await().atMost(TEST_TIMEOUT).until(() -> scenarioHasState(scenario, "first-prepared"));
 
             // When
             var second = CompletableFuture.supplyAsync(() -> replace(session, key, purchase(20000)), executor);
-            await().atMost(TEST_TIMEOUT).until(commits.secondPrepared()::isDone);
+            await().atMost(TEST_TIMEOUT).until(() -> scenarioHasState(scenario, "both-prepared"));
+            assertThat(first).isNotDone();
+            assertThat(second).isNotDone();
+            assertPreparedCommands(session);
             assertStreamVersion(session, 1);
-            commits.resume();
 
             // Then
             var winner = successfulReplacement(first.get(8, TimeUnit.SECONDS));
@@ -120,31 +102,28 @@ class ConcurrentPurchaseReplacementTest {
         // Given
         var session = createSession();
         String key = newKey();
-        var loaded = new CompletableFuture<Void>();
-        var resume = new CompletableFuture<Void>();
-        var first = new AtomicInteger();
-        doAnswer(invocation -> {
-            if (first.getAndIncrement() == 0) {
-                loaded.complete(null);
-                resume.get(12, TimeUnit.SECONDS);
-            }
-            return invocation.callRealMethod();
-        }).when(eventStore).load(any());
+        var scenario = newKey();
+        var lookup = post(urlEqualTo("/"))
+            .withHeader("X-Amz-Target", equalTo("DynamoDB_20120810.GetItem"))
+            .withRequestBody(matchingJsonPath("$.Key.PK.S", equalTo(
+                "M#" + MERCHANT + "#IDEMP#" + sha256("CHANGE_PURCHASE:v1:" + key))));
+        var delayedLookup = wireMock.stubFor(lookup.inScenario(scenario).whenScenarioStateIs(STARTED)
+                                                   .willSetStateTo("lookup-delayed")
+                                                   .willReturn(
+                                                       okJson(json.writeValueAsString(Map.of())).withFixedDelay(2000)));
         try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
-            try {
-                var delayed = CompletableFuture.supplyAsync(() -> replace(session, key, purchase(15000)), executor);
-                await().atMost(TEST_TIMEOUT).until(loaded::isDone);
+            var delayed = CompletableFuture.supplyAsync(() -> replace(session, key, purchase(15000)), executor);
+            await().atMost(TEST_TIMEOUT).until(() -> scenarioHasState(scenario, "lookup-delayed"));
 
-                // When
-                var winner = successfulReplacement(replace(session, key, purchase(15000)));
-                resume.complete(null);
+            // When
+            var winner = successfulReplacement(replace(session, key, purchase(15000)));
+            assertThat(delayed).isNotDone();
 
-                // Then
-                assertThat(successfulReplacement(delayed.get(8, TimeUnit.SECONDS))).isEqualTo(winner);
-                assertStreamVersion(session, 2);
-            } finally {
-                resume.complete(null);
-            }
+            // Then
+            assertThat(successfulReplacement(delayed.get(8, TimeUnit.SECONDS))).isEqualTo(winner);
+            assertStreamVersion(session, 2);
+        } finally {
+            wireMock.removeStub(delayedLookup);
         }
     }
 
@@ -153,19 +132,20 @@ class ConcurrentPurchaseReplacementTest {
     void shouldCompleteTheReplacementWhenSpringRetriesTransientDynamoDBTransactionConflicts() {
         // Given
         var session = createSession();
-        clearInvocations(dynamo);
-        var attempts = new AtomicInteger();
-        doAnswer(invocation -> {
-            if (attempts.getAndIncrement() < 2) throw cancellation("TransactionConflict");
-            return invocation.callRealMethod();
-        }).when(dynamo).transaction(anyList(), anyString());
+        var scenario = newKey();
+        wireMock.stubFor(transaction(session).inScenario(scenario).whenScenarioStateIs(STARTED)
+                                             .willSetStateTo("retry-one")
+                                             .willReturn(cancellation("TransactionConflict")));
+        wireMock.stubFor(transaction(session).inScenario(scenario).whenScenarioStateIs("retry-one")
+                                             .willSetStateTo("retry-two")
+                                             .willReturn(cancellation("TransactionConflict")));
 
         // When
         var result = successfulReplacement(replace(session, newKey(), purchase(15000)));
 
         // Then
         assertThat(result.purchase().amountMinor()).isEqualTo(15000);
-        verify(dynamo, times(3)).transaction(anyList(), anyString());
+        wireMock.verify(3, transactionRequest(session));
         assertStreamVersion(session, 2);
     }
 
@@ -174,17 +154,18 @@ class ConcurrentPurchaseReplacementTest {
     void shouldReturnARetryableHTTPFailureWhenSpringExhaustsTransactionConflictRetries() {
         // Given
         var session = createSession();
-        clearInvocations(dynamo);
         String key = newKey();
-        doThrow(cancellation("TransactionConflict")).when(dynamo).transaction(anyList(), anyString());
+        var failure = wireMock.stubFor(transaction(session).willReturn(cancellation("TransactionConflict")));
+        try {
+            // When
+            replace(session, key, purchase(15000)).expectStatus().isEqualTo(503);
 
-        // When
-        replace(session, key, purchase(15000)).expectStatus().isEqualTo(503);
-
-        // Then
-        verify(dynamo, times(4)).transaction(anyList(), anyString());
-        assertStreamVersion(session, 1);
-        doCallRealMethod().when(dynamo).transaction(anyList(), anyString());
+            // Then
+            wireMock.verify(4, transactionRequest(session));
+            assertStreamVersion(session, 1);
+        } finally {
+            wireMock.removeStub(failure);
+        }
         successfulReplacement(replace(session, key, purchase(15000)));
         assertStreamVersion(session, 2);
     }
@@ -194,15 +175,17 @@ class ConcurrentPurchaseReplacementTest {
     void shouldAvoidRetryingTheTransactionWhenCancellationReportsAFailedCondition() {
         // Given
         var session = createSession();
-        clearInvocations(dynamo);
-        doThrow(cancellation("ConditionalCheckFailed")).when(dynamo).transaction(anyList(), anyString());
+        var failure = wireMock.stubFor(transaction(session).willReturn(cancellation("ConditionalCheckFailed")));
+        try {
+            // When
+            replace(session, newKey(), purchase(15000)).expectStatus().isEqualTo(503);
 
-        // When
-        replace(session, newKey(), purchase(15000)).expectStatus().isEqualTo(503);
-
-        // Then
-        verify(dynamo, times(1)).transaction(anyList(), anyString());
-        assertStreamVersion(session, 1);
+            // Then
+            wireMock.verify(1, transactionRequest(session));
+            assertStreamVersion(session, 1);
+        } finally {
+            wireMock.removeStub(failure);
+        }
     }
 
     @Test
@@ -211,53 +194,79 @@ class ConcurrentPurchaseReplacementTest {
         // Given
         var session = createSession();
         String key = newKey();
-        doAnswer(invocation -> {
-            invocation.callRealMethod();
-            throw SdkClientException.create("Simulated lost commit response");
-        }).when(dynamo).transaction(anyList(), anyString());
+        // WireMock forwards the commit before delaying its response beyond the SDK socket timeout.
+        var lostResponse = wireMock.stubFor(transaction(session)
+                                                .willReturn(aResponse().proxiedFrom("http://localhost:8000")
+                                                                       .withFixedDelay(6000)));
+        try {
+            // When
+            replace(session, key, purchase(15000)).expectStatus().isEqualTo(503);
 
-        // When
-        replace(session, key, purchase(15000)).expectStatus().isEqualTo(503);
-
-        // Then
-        assertStreamVersion(session, 2);
-        doCallRealMethod().when(dynamo).transaction(anyList(), anyString());
+            // Then
+            assertStreamVersion(session, 2);
+        } finally {
+            wireMock.removeStub(lostResponse);
+        }
         var recovered = successfulReplacement(replace(session, key, purchase(15000)));
         assertThat(read(session)).isEqualTo(recovered);
         assertStreamVersion(session, 2);
     }
 
     private PaymentSessionResponse createSession() {
-        return client.post().uri("/v1/sessions").header("Idempotency-Key", newKey())
+        return client.post().uri("/v1/sessions")
+                     .header("Idempotency-Key", newKey())
                      .contentType(MediaType.APPLICATION_JSON)
-                     .body(new CreatePaymentSessionRequest(10000, "BRL", null, null)).exchange().expectStatus()
-                     .isCreated().expectBody(PaymentSessionResponse.class).returnResult().getResponseBody();
+                     .body(new CreatePaymentSessionRequest(10000, "BRL", null, null))
+                     .exchange()
+                     .expectStatus()
+                     .isCreated()
+                     .expectBody(PaymentSessionResponse.class)
+                     .returnResult()
+                     .getResponseBody();
     }
 
-    private RestTestClient.ResponseSpec replace(PaymentSessionResponse session,
-                                                String key,
-                                                ChangePurchaseRequest purchase) {
-        return client.put().uri("/v1/sessions/{id}", session.sessionId()).header("Idempotency-Key", key)
-                     .header(HttpHeaders.IF_MATCH, "\"1\"").contentType(MediaType.APPLICATION_JSON).body(purchase)
+    private ResponseSpec replace(PaymentSessionResponse session,
+                                 String key,
+                                 ChangePurchaseRequest purchase) {
+        return client.put().uri("/v1/sessions/{id}", session.sessionId())
+                     .header("Idempotency-Key", key)
+                     .header(HttpHeaders.IF_MATCH, "\"1\"")
+                     .contentType(MediaType.APPLICATION_JSON)
+                     .body(purchase)
                      .exchange();
     }
 
-    private PaymentSessionResponse successfulReplacement(RestTestClient.ResponseSpec response) {
-        return response.expectStatus().isOk().expectHeader().valueEquals(HttpHeaders.ETAG, "\"2\"")
-                       .expectBody(PaymentSessionResponse.class).returnResult().getResponseBody();
+    private PaymentSessionResponse successfulReplacement(ResponseSpec response) {
+        return response.expectStatus()
+                       .isOk()
+                       .expectHeader()
+                       .valueEquals(HttpHeaders.ETAG, "\"2\"")
+                       .expectBody(PaymentSessionResponse.class)
+                       .returnResult()
+                       .getResponseBody();
     }
 
-    private void assertProblem(RestTestClient.ResponseSpec response,
+    private void assertProblem(ResponseSpec response,
                                String code) {
-        var problem = response.expectStatus().isEqualTo(409).expectBody(ProblemDetail.class).returnResult()
+
+        var problem = response.expectStatus()
+                              .isEqualTo(409)
+                              .expectBody(ProblemDetail.class)
+                              .returnResult()
                               .getResponseBody();
+
         assertThat(problem).isNotNull();
         assertThat(problem.getProperties()).containsEntry("code", code);
     }
 
     private PaymentSessionResponse read(PaymentSessionResponse session) {
-        return client.get().uri("/v1/sessions/{id}", session.sessionId()).exchange().expectStatus().isOk()
-                     .expectBody(PaymentSessionResponse.class).returnResult().getResponseBody();
+        return client.get().uri("/v1/sessions/{id}", session.sessionId())
+                     .exchange()
+                     .expectStatus()
+                     .isOk()
+                     .expectBody(PaymentSessionResponse.class)
+                     .returnResult()
+                     .getResponseBody();
     }
 
     private void assertStreamVersion(PaymentSessionResponse session,
@@ -276,51 +285,54 @@ class ConcurrentPurchaseReplacementTest {
         return UUID.randomUUID().toString();
     }
 
-    private TransactionCanceledException cancellation(String reason) {
-        return TransactionCanceledException.builder()
-                                           .cancellationReasons(CancellationReason.builder().code(reason).build())
-                                           .build();
+    private ResponseDefinitionBuilder cancellation(String reason) {
+        return aResponse().withStatus(400).withHeader("Content-Type", "application/x-amz-json-1.0")
+                          .withBody(json.writeValueAsString(
+                              Map.of("__type", "com.amazonaws.dynamodb.v20120810#TransactionCanceledException",
+                                     "CancellationReasons",
+                                     List.of(Map.of("Code", reason, "Message", "Injected transaction cancellation")))));
     }
 
-    private ConcurrentCommits controlConcurrentCommits() {
-        var control = new ConcurrentCommits();
-        var attempts = new AtomicInteger();
-        doAnswer(invocation -> {
-            int attempt = attempts.getAndIncrement();
-            if (attempt == 0) {
-                control.firstPrepared().complete(null);
-                control.resumeFirst().get(12, TimeUnit.SECONDS);
-                try {
-                    return invocation.callRealMethod();
-                } finally {
-                    control.firstCommitted().complete(null);
-                }
-            }
-            if (attempt == 1) {
-                control.secondPrepared().complete(null);
-                control.firstCommitted().get(12, TimeUnit.SECONDS);
-            }
-            return invocation.callRealMethod();
-        }).when(dynamo).transaction(anyList(), anyString());
-        return control;
+    private MappingBuilder transaction(PaymentSessionResponse session) {
+        return post(urlEqualTo("/")).atPriority(1)
+                                    .withHeader("X-Amz-Target", equalTo("DynamoDB_20120810.TransactWriteItems"))
+                                    .withRequestBody(matchingJsonPath("$.TransactItems[0].Put.Item.PK.S",
+                                                                      equalTo(partition(session))));
     }
 
-    private record ConcurrentCommits(CompletableFuture<Void> firstPrepared, CompletableFuture<Void> secondPrepared,
-                                     CompletableFuture<Void> resumeFirst,
-                                     CompletableFuture<Void> firstCommitted) implements AutoCloseable {
-        ConcurrentCommits() {
-            this(new CompletableFuture<>(), new CompletableFuture<>(), new CompletableFuture<>(),
-                 new CompletableFuture<>());
-        }
-
-        void resume() {
-            resumeFirst.complete(null);
-        }
-
-        @Override
-        public void close() {
-            resume();
-            firstCommitted.complete(null);
-        }
+    private RequestPatternBuilder transactionRequest(PaymentSessionResponse session) {
+        return postRequestedFor(urlEqualTo("/"))
+            .withHeader("X-Amz-Target", equalTo("DynamoDB_20120810.TransactWriteItems"))
+            .withRequestBody(matchingJsonPath("$.TransactItems[0].Put.Item.PK.S", equalTo(partition(session))))
+            .withRequestBody(matchingJsonPath("$.TransactItems[0].Put.Item.SK.S", equalTo("EVT#00000000000000000002")));
     }
+
+    private void assertPreparedCommands(PaymentSessionResponse session) {
+        assertThat(wireMock.findAll(transactionRequest(session)))
+            .extracting(request -> json.readTree(request.getBodyAsString()).at("/TransactItems/0/Put/Item/data/S"))
+            .hasSize(2)
+            .doesNotHaveDuplicates();
+    }
+
+    private String partition(PaymentSessionResponse session) {
+        return "M#" + MERCHANT + "#S#" + session.sessionId();
+    }
+
+    private boolean scenarioHasState(String scenario,
+                                     String state) {
+        return wireMock.getAllScenarios().getScenarios().stream()
+                       .anyMatch(value -> value.getName().equals(scenario) && value.getState().equals(state));
+    }
+
+    private String controlConcurrentCommits(PaymentSessionResponse session) {
+        var scenario = newKey();
+        wireMock.stubFor(transaction(session).inScenario(scenario).whenScenarioStateIs(STARTED)
+                                             .willSetStateTo("first-prepared")
+                                             .willReturn(cancellation("TransactionConflict").withFixedDelay(2000)));
+        wireMock.stubFor(transaction(session).inScenario(scenario).whenScenarioStateIs("first-prepared")
+                                             .willSetStateTo("both-prepared")
+                                             .willReturn(cancellation("TransactionConflict").withFixedDelay(3500)));
+        return scenario;
+    }
+
 }
