@@ -109,27 +109,37 @@ Evidence: [shouldReturnTheSameSessionForEverySuccessfulResponseWhenIdenticalCrea
 
 ### REQ-IDEM-006 — Wait for a concurrent purchase replacement
 
-Status: Verified
+Status: Superseded
 
-Acceptance: Given a purchase replacement holding its scoped key, when an identical concurrent replacement arrives, then it waits within a bounded deadline and returns the original successful response with no additional event. Different content waits for completion and returns 409 IDEMPOTENCY_KEY_CONFLICT. Waiting beyond the deadline returns 503 and preserves the active owner.
-
-Implementation: [SessionCommandCoordinator.java](../payments-app/src/main/java/lab/payments/payment_session/application/SessionCommandCoordinator.java)
-
-Evidence: [shouldReturnTheOriginalReplacementResultWhenAnIdenticalConcurrentRequestWaitsForCompletion()](../payments-app/src/test/java/lab/payments/payment_session/ConcurrentPurchaseReplacementTest.java), [shouldRejectConflictingContentWhenAConcurrentRequestWaitsForTheSameIdempotencyKey()](../payments-app/src/test/java/lab/payments/payment_session/ConcurrentPurchaseReplacementTest.java), [shouldPreserveTheActiveOwnerWhenAConcurrentRequestExceedsItsWaitDeadline()](../payments-app/src/test/java/lab/payments/payment_session/ConcurrentPurchaseReplacementTest.java)
+The synchronous wait and command-reservation design was replaced by REQ-IDEM-008 and REQ-IDEM-009. HTTP arrival order does not reserve precedence. See [ADR-0008](decisions/0008-native-transaction-retries.md).
 
 ### REQ-IDEM-007 — Fence expired replacement owners
 
+Status: Retired
+
+Purchase replacement no longer creates PROCESSING records or application leases. DynamoDB transaction conditions protect the stream and completed result under REQ-IDEM-008. External-effect ownership/recovery remains planned under REQ-REC-001. Historical rationale is preserved in [ADR-0007](decisions/0007-concurrent-replacement-reservations.md).
+
+### REQ-IDEM-008 — Resolve concurrent replacements using conditional transactions
+
 Status: Verified
 
-Acceptance: Given an expired processing reservation, when another owner takes over, then the old owner cannot commit events, projections or results or release the new reservation. Business rejection releases its reservation; uncertain persistence outcomes leave the reservation to expire. Scope is purchase replacement with no external business effects.
+Acceptance: Given overlapping replacements prepared from the same stream version and scoped key, when one transaction commits, then identical content resolves the persisted winner and different content receives 409 IDEMPOTENCY_KEY_CONFLICT. The stream gains one replacement event and projections advance once. HTTP arrival order does not determine the winner. A winner committed between initial result lookup and stream load is reconciled before reporting a stale version.
 
-Implementation: [DynamoDbSessionCommandReservations.java](../payments-app/src/main/java/lab/payments/payment_session/infrastructure/DynamoDbSessionCommandReservations.java), [DynamoDbPaymentSessionRepository.java](../payments-app/src/main/java/lab/payments/payment_session/infrastructure/DynamoDbPaymentSessionRepository.java)
+Implementation: [DynamoDbPaymentSessionRepository.java](../payments-app/src/main/java/lab/payments/payment_session/infrastructure/DynamoDbPaymentSessionRepository.java), [ChangePurchaseService.java](../payments-app/src/main/java/lab/payments/payment_session/application/ChangePurchaseService.java)
 
-Evidence: [shouldFenceTheOldWriterAndPreserveTheNewReservationWhenAnExpiredCommandIsTakenOver()](../payments-app/src/test/java/lab/payments/payment_session/SessionCommandReservationIntegrationTest.java), [shouldRejectAnExpiredWriterWhenItsReservationHasElapsedWithoutASuccessor()](../payments-app/src/test/java/lab/payments/payment_session/SessionCommandReservationIntegrationTest.java), [shouldReleaseTheReservationForCorrectionWhenAPurchaseReplacementIsRejected()](../payments-app/src/test/java/lab/payments/payment_session/SessionCommandReservationIntegrationTest.java)
+Evidence: [shouldReplayTheWinningReplacementWhenIdenticalConcurrentRequestsPrepareTheSameStreamVersion()](../payments-app/src/test/java/lab/payments/payment_session/ConcurrentPurchaseReplacementTest.java), [shouldRejectConflictingContentWhenConcurrentReplacementsShareAnIdempotencyKey()](../payments-app/src/test/java/lab/payments/payment_session/ConcurrentPurchaseReplacementTest.java), [shouldReplayTheWinningResultWhenAConcurrentCommitFollowsTheInitialIdempotencyLookup()](../payments-app/src/test/java/lab/payments/payment_session/ConcurrentPurchaseReplacementTest.java)
 
-The takeover test uses independent adapter instances against real DynamoDB Local and expires the lease attribute explicitly. Actual process termination and two running payment applications remain REQ-TEST-001.
+### REQ-IDEM-009 — Bound transient transaction retries through Spring
 
-Uncertain-outcome evidence: [shouldReplayTheCompletedReplacementWhenTheCommitResponseIsLost()](../payments-app/src/test/java/lab/payments/payment_session/ConcurrentPurchaseReplacementTest.java), [shouldRetainOwnershipUntilRetryTakeoverWhenPersistenceFailsBeforeCompletion()](../payments-app/src/test/java/lab/payments/payment_session/ConcurrentPurchaseReplacementTest.java). These inject SDK failures around real persistence and explicitly expire the reservation for takeover.
+Status: Verified
+
+Acceptance: Given a transaction cancellation containing TransactionConflict and otherwise only None reasons, when no completed result is available, then Spring retries repository persistence with bounded exponential backoff. A conditional or other permanent cancellation is not selected for retry. Exhaustion returns 503 and the caller can retry the same key. A lost commit response is recovered from the completed result.
+
+Implementation: [PaymentSessionPolicies.java](../payments-app/src/main/java/lab/payments/configuration/PaymentSessionPolicies.java), [DynamoDbTransactionConflictPredicate.java](../payments-app/src/main/java/lab/payments/payment_session/infrastructure/DynamoDbTransactionConflictPredicate.java)
+
+Evidence: [shouldCompleteTheReplacementWhenSpringRetriesTransientDynamoDBTransactionConflicts()](../payments-app/src/test/java/lab/payments/payment_session/ConcurrentPurchaseReplacementTest.java), [shouldReturnARetryableHTTPFailureWhenSpringExhaustsTransactionConflictRetries()](../payments-app/src/test/java/lab/payments/payment_session/ConcurrentPurchaseReplacementTest.java), [shouldAvoidRetryingTheTransactionWhenCancellationReportsAFailedCondition()](../payments-app/src/test/java/lab/payments/payment_session/ConcurrentPurchaseReplacementTest.java), [shouldReplayTheCompletedReplacementWhenTheCommitResponseIsLost()](../payments-app/src/test/java/lab/payments/payment_session/ConcurrentPurchaseReplacementTest.java)
+
+Transient failures are injected at the SDK transaction boundary and successful attempts persist to real DynamoDB Local. The overlapping-request tests control commit order inside test fixtures. They establish deterministic conflicting snapshots, without claiming a native DynamoDB wait queue or simultaneous server-side transaction scheduling.
 
 ### REQ-EVT-001 — Replay stored facts without renewing them
 

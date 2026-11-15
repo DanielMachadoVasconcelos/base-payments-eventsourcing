@@ -18,9 +18,11 @@ The RestTestClient suite uses the full Spring application through MVC and a real
 
 ## Concurrent replacement follow-up
 
-Real HTTP replacement tests use MockitoSpyBean around real event-store and reservation beans. Awaitility observes a test-local CompletableFuture gate after reservation acquisition and a second failed acquisition before the owner is released. They assert matching replay, conflicting-content rejection, waiter timeout, and failures before/after persistence. RestTestClient uses JdkClientHttpRequestFactory to expose the first response without automatic 503 retries.
+Real HTTP tests use MockitoSpyBean around real DynamoDB and event-store beans. Test-local CompletableFuture gates and Awaitility establish two requests with the same starting version, then release their transaction calls in a deterministic order. Matching content resolves the winning result and different content returns 409 with one replacement event.
 
-Independent reservation adapters exercise takeover after explicitly expiring the native lease attribute, owner fencing and business-rejection cleanup. This is not process-restart evidence. See the [future WireMock authorization scenarios](authorization-test-plan.md).
+SDK-boundary failure injection proves native Spring retry success, exhaustion and exclusion of conditional failures. A separate scenario covers a winner committed between initial lookup and stream load. Lost commit responses resolve through the completed RESULT. JdkClientHttpRequestFactory exposes the first response without automatic HTTP status retries.
+
+Earlier reservation/lease scenarios were retired with REQ-IDEM-006/007. The current implementation uses conditional transactions and framework retry without an application wait queue. See the [future WireMock authorization scenarios](authorization-test-plan.md).
 
 ## Test naming convention
 

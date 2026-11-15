@@ -23,7 +23,8 @@ lab:
   workers-enabled: ${WORKERS_ENABLED:true}
   synchronous-wait-ms: ${SYNC_WAIT_MS:3000}
   lease-ms: ${LEASE_MS:30000}
-  command-poll-ms: ${COMMAND_POLL_MS:25}
+  transaction-max-retries: ${TRANSACTION_MAX_RETRIES:3}
+  transaction-retry-delay-ms: ${TRANSACTION_RETRY_DELAY_MS:50}
   heartbeat-ms: ${HEARTBEAT_MS:10000}
   poll-ms: ${POLL_MS:1000}
   max-attempts: 20

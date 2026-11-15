@@ -12,7 +12,6 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class ChangePurchaseService {
     private final PaymentSessionEventStore eventStore;
-    private final SessionCommandCoordinator coordinator;
     private final PurchasePayloadStore purchasePayloadStore;
     private final PaymentSessionResultMapper resultMapper;
     private final BusinessClock businessClock;
@@ -31,33 +30,36 @@ public class ChangePurchaseService {
                                         command.purchase(),
                                         "expectedVersion",
                                         context.expectedVersion())));
-        var persistedResult =
-                coordinator.execute(idempotency, reservation -> replace(command, reservation));
-        return resultMapper.fromStoredResult(persistedResult, merchantId);
-    }
-
-    private StoredSessionResult replace(
-            ChangePurchaseCommand command, SessionCommandReservation reservation) {
-        var context = command.context();
-        var merchantId = context.identity().merchantId();
+        var previous = eventStore.previouslyCompletedResponse(idempotency);
+        if (previous.isPresent()) {
+            return resultMapper.fromStoredResult(previous.get(), merchantId);
+        }
         var session =
                 eventStore
                         .load(context.identity())
                         .orElseThrow(PaymentSessionNotFoundException::new);
         String payloadId = purchasePayloadStore.store(merchantId, command.purchase());
         var metadata = new CommandMetadata(CommandId.newId(), businessClock.instant());
-        session.changePurchase(
-                new ChangeSessionPurchase(
-                        PurchaseRevision.of(command.purchase(), payloadId),
-                        context.expectedVersion(),
-                        metadata),
-                expirationPolicy);
+        try {
+            session.changePurchase(
+                    new ChangeSessionPurchase(
+                            PurchaseRevision.of(command.purchase(), payloadId),
+                            context.expectedVersion(),
+                            metadata),
+                    expirationPolicy);
+        } catch (PaymentSessionVersionMismatchException staleVersion) {
+            // A same-key winner may have committed between the initial lookup and stream load.
+            return eventStore
+                    .previouslyCompletedResponse(idempotency)
+                    .map(result -> resultMapper.fromStoredResult(result, merchantId))
+                    .orElseThrow(() -> staleVersion);
+        }
         var view = PaymentSessionView.from(session, command.purchase());
-        return eventStore.append(
-                session,
-                new CompletedSessionCommand(
-                        reservation.request(),
-                        resultMapper.toStoredResult(view, payloadId),
-                        reservation));
+        var persistedResult =
+                eventStore.append(
+                        session,
+                        new CompletedSessionCommand(
+                                idempotency, resultMapper.toStoredResult(view, payloadId)));
+        return resultMapper.fromStoredResult(persistedResult, merchantId);
     }
 }

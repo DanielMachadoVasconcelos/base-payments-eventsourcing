@@ -111,11 +111,13 @@ On a same-key race, a losing writer reconciles the durable winner's response. On
 
 ## Concurrent purchase replacements
 
-PUT uses SessionCommandCoordinator before loading the aggregate or uploading the replacement payload. The coordinator checks the existing completed result and attempts a conditional reservation through SessionCommandReservations. DynamoDbSessionCommandReservations implements that port. The reservation is specific to the merchant/operation/version/key.
+PUT checks the completed idempotent result, loads the stream and asks the aggregate to change the purchase. If a winner commits between lookup and load, ChangePurchaseService rechecks the completed result before reporting a version mismatch.
 
-A losing caller polls durable state until it can replay the completed result, report conflicting content or reach its wait deadline. A business rejection releases ownership conditionally. An uncertain outcome leaves a bounded lease that a later caller may replace. Final persistence validates ownership and the lease while atomically deleting PROCESSING with the session writes. No waiting transaction or external call is involved.
+DynamoDbPaymentSessionRepository uses conditional TransactWriteItems to persist events, projections and the completed result atomically. On a failed transaction it reads RESULT consistently and verifies the request fingerprint. Identical content replays the winner and conflicting content produces 409.
 
-CompletedSessionCommand carries the optional reservation into the event store. Creation and stored-result formats retain their previous contract. See [ADR-0007](decisions/0007-concurrent-replacement-reservations.md).
+Spring Framework 7 EnableResilientMethods and Retryable repeat repository persistence for selected transient transaction conflicts. Each attempt checks the existing result. DynamoDbTransactionConflictPredicate supplies the small SDK-specific cancellation-reason classification required by the framework's extension point. Conditional failures and validation errors are not selected. Exhaustion exposes the existing 503 contract.
+
+There is no separate PROCESSING reservation, lease or application polling loop. HTTP arrival order carries no ownership guarantee. Payload uploads remain outside the transaction. See [ADR-0008](decisions/0008-native-transaction-retries.md).
 
 ## DynamoDB layout
 
@@ -129,7 +131,6 @@ Two independent tables: payments_lab and simulator_lab. Test names have unique s
 | Same session partition | `REF#PAYLOAD#<digest>`, `REF#IDEMP#<digest>` | Reverse references |
 | `M#merchant#PAYLOAD#payloadId` | `MANIFEST`, `CHUNK#<10-digit index>` | Immutable purchase |
 | `M#merchant#IDEMP#digest` | `RESULT` | Completed command response descriptor |
-| Same idempotency partition | `PROCESSING` | Replacement owner token and lease deadline |
 
 JSON is stored under data; keys and selected condition/index attributes also exist as native attributes. A sparse work index is provisioned, but workers are not implemented. TTL-based deletion is not enabled.
 

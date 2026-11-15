@@ -1,6 +1,8 @@
 # ADR-0007 — Durable ownership of concurrent purchase replacements
 
-Status: Accepted
+Status: Superseded by [ADR-0008](0008-native-transaction-retries.md)
+
+This records the historical reservation design. Its implementation was removed in favor of native conditional transactions and Spring retry. The rationale below describes that earlier decision.
 
 ## Context
 
@@ -27,6 +29,6 @@ A durable reservation handles coordination; delaying an SDK call alone would not
 ## Evidence and links
 
 - [Requirements](../requirements.md) REQ-IDEM-006 and REQ-IDEM-007.
-- [HTTP concurrency scenarios](../../payments-app/src/test/java/lab/payments/payment_session/ConcurrentPurchaseReplacementTest.java) use RestTestClient, MockitoSpyBean, Awaitility and test-local CompletableFuture control.
-- [Reservation integration scenarios](../../payments-app/src/test/java/lab/payments/payment_session/SessionCommandReservationIntegrationTest.java) exercise real conditional transactions and forced expiry using independent adapter instances.
+- [HTTP concurrency scenarios](https://github.com/DanielMachadoVasconcelos/base-payments-eventsourcing/blob/b5d002d/payments-app/src/test/java/lab/payments/payment_session/ConcurrentPurchaseReplacementTest.java) use RestTestClient, MockitoSpyBean, Awaitility and test-local CompletableFuture control.
+- [Reservation integration scenarios](https://github.com/DanielMachadoVasconcelos/base-payments-eventsourcing/blob/b5d002d/payments-app/src/test/java/lab/payments/payment_session/SessionCommandReservationIntegrationTest.java) exercise real conditional transactions and forced expiry using independent adapter instances.
 - Process crashes and multiple running applications remain unproven under REQ-TEST-001.

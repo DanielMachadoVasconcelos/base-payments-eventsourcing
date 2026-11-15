@@ -19,7 +19,7 @@ A short handover, not a transcript. [Requirements](requirements.md) own scope/ev
 
 - GET replays events, not HEAD. HEAD is written atomically but is not the read source.
 - Stored event compatibility is tested. Internal refactoring must not silently change JSON or idempotency addresses.
-- PUT replacements reserve a durable PROCESSING item beside the existing RESULT. Default lease is 30s without renewal; waiters poll for up to 3s, returning the completed response, 409 for conflicting content or 503 on timeout. Conditional ownership deletion fences the final transaction.
+- Concurrent replacements use DynamoDB conditional transactions and Spring Framework 7 Retryable on repository save. Retry only transient TransactionConflict cancellations, with 3 retries, 50ms initial exponential backoff and jitter by default. No coordinator, PROCESSING reservation or replacement lease remains. HTTP arrival order does not select the winner.
 - Completed retries use the persisted winner's payload/identifiers, not a losing caller's new session.
 - Payload uploads are separate from the session transaction. Crashes/conflicts can leave orphans; cleanup is absent.
 - Chunking buffers complete documents in memory. Large merchantReference metadata is not offloaded from every summary. Do not claim infinite request sizes.
@@ -32,6 +32,6 @@ A short handover, not a transcript. [Requirements](requirements.md) own scope/ev
 
 Durable authorization intent/recovery is next. Authorization/recovery lease fencing, application order uniqueness, outbox, 49-hour post-authorization expiry, retained idempotency cleanup and isolated full projection rebuild still need implementation and evidence.
 
-Replacement takeover is tested with independent adapters and forced lease expiry, without stopping application processes. WireMock authorization scenarios remain planned in docs/authorization-test-plan.md.
+Concurrent-request fixtures control commit order, and retry tests inject SDK conflicts before real persistence. Process restarts remain unproven. WireMock authorization scenarios remain planned in docs/authorization-test-plan.md.
 
 Only implement the current authorized scope. Update this page when these facts change; keep it short.

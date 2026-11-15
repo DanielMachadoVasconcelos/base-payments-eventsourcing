@@ -2,21 +2,17 @@ package lab.payments.payment_session;
 
 import static org.assertj.core.api.Assertions.*;
 import static org.awaitility.Awaitility.await;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.doAnswer;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 import java.time.Duration;
-import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import lab.common.Dynamo;
 import lab.payments.payment_session.application.*;
-import lab.payments.payment_session.domain.*;
 import lab.payments.payment_session.entry.*;
 import org.junit.jupiter.api.*;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.HttpHeaders;
@@ -27,19 +23,18 @@ import org.springframework.test.context.*;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.client.RestTestClient;
 import software.amazon.awssdk.core.exception.SdkClientException;
+import software.amazon.awssdk.services.dynamodb.model.CancellationReason;
+import software.amazon.awssdk.services.dynamodb.model.TransactionCanceledException;
 
 @Tag("compose")
-@SpringBootTest(
-        webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
-        properties = {"lab.synchronous-wait-ms=3000", "lab.command-poll-ms=20"})
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class ConcurrentPurchaseReplacementTest {
     private static final String TABLE =
             "payments_concurrent_" + UUID.randomUUID().toString().replace("-", "");
     private static final String MERCHANT = "concurrent-merchant";
     private static final Duration TEST_TIMEOUT = Duration.ofSeconds(8);
-    @Autowired private Dynamo dynamo;
+    @MockitoSpyBean private Dynamo dynamo;
     @MockitoSpyBean private PaymentSessionEventStore eventStore;
-    @MockitoSpyBean private SessionCommandReservations reservations;
 
     @Value("${local.server.port}")
     private int port;
@@ -48,7 +43,6 @@ class ConcurrentPurchaseReplacementTest {
 
     @BeforeEach
     void configureClient() {
-        // Observe the first HTTP response instead of transport-level retries of 503.
         var requestFactory = new JdkClientHttpRequestFactory();
         requestFactory.setReadTimeout(Duration.ofSeconds(12));
         client =
@@ -64,154 +58,184 @@ class ConcurrentPurchaseReplacementTest {
     }
 
     @AfterAll
-    static void cleanup(@Autowired Dynamo dynamo) {
+    static void cleanup(@org.springframework.beans.factory.annotation.Autowired Dynamo dynamo) {
         dynamo.client.deleteTable(request -> request.tableName(TABLE));
     }
 
     @Test
     @DisplayName(
-            "Should return the original replacement result When an identical concurrent request waits for completion")
+            "Should replay the winning replacement When identical concurrent requests prepare the same stream version")
     void
-            shouldReturnTheOriginalReplacementResultWhenAnIdenticalConcurrentRequestWaitsForCompletion()
+            shouldReplayTheWinningReplacementWhenIdenticalConcurrentRequestsPrepareTheSameStreamVersion()
                     throws Exception {
         // Given
         var session = createSession();
-        String key = UUID.randomUUID().toString();
-        var purchase =
-                new ChangePurchaseRequest(15000, "BRL", "replacement", Map.of("revision", 2));
+        String key = newKey();
+        var purchase = purchase(15000);
         try (var executor = Executors.newVirtualThreadPerTaskExecutor();
-                var processing = pauseFirstCommit()) {
+                var commits = controlConcurrentCommits()) {
             var first =
                     CompletableFuture.supplyAsync(() -> replace(session, key, purchase), executor);
-            await().atMost(TEST_TIMEOUT).until(processing.firstCommitEntered()::isDone);
+            await().atMost(TEST_TIMEOUT).until(commits.firstPrepared()::isDone);
 
             // When
             var second =
                     CompletableFuture.supplyAsync(() -> replace(session, key, purchase), executor);
-            await().atMost(TEST_TIMEOUT).until(processing.secondRequestWaiting()::isDone);
+            await().atMost(TEST_TIMEOUT).until(commits.secondPrepared()::isDone);
             assertThat(first).isNotDone();
             assertThat(second).isNotDone();
             assertStreamVersion(session, 1);
-            processing.resume();
+            commits.resume();
 
             // Then
             var winner = successfulReplacement(first.get(8, TimeUnit.SECONDS));
-            var replay = successfulReplacement(second.get(8, TimeUnit.SECONDS));
-            assertThat(winner.version()).isEqualTo(2);
-            assertThat(winner.purchase())
-                    .isEqualTo(
-                            new PurchaseResponse(
-                                    15000, "BRL", "replacement", Map.of("revision", 2)));
-            assertThat(replay).isEqualTo(winner);
+            assertThat(successfulReplacement(second.get(8, TimeUnit.SECONDS))).isEqualTo(winner);
             assertThat(successfulReplacement(replace(session, key, purchase))).isEqualTo(winner);
-            assertThat(eventStore.previouslyCompletedResponse(idempotency(key, purchase)))
-                    .hasValueSatisfying(
-                            result ->
-                                    assertThat(result.sessionId()).isEqualTo(session.sessionId()));
+            assertThat(winner.purchase().amountMinor()).isEqualTo(15000);
             assertStreamVersion(session, 2);
-            assertThat(dynamo.get(commandPartition(key), "PROCESSING")).isNull();
         }
     }
 
     @Test
     @DisplayName(
-            "Should reject conflicting content When a concurrent request waits for the same idempotency key")
-    void shouldRejectConflictingContentWhenAConcurrentRequestWaitsForTheSameIdempotencyKey()
+            "Should reject conflicting content When concurrent replacements share an idempotency key")
+    void shouldRejectConflictingContentWhenConcurrentReplacementsShareAnIdempotencyKey()
             throws Exception {
         // Given
         var session = createSession();
-        String key = UUID.randomUUID().toString();
-        var purchase = new ChangePurchaseRequest(15000, "BRL", null, null);
-        var conflicting = new ChangePurchaseRequest(20000, "BRL", null, null);
+        String key = newKey();
         try (var executor = Executors.newVirtualThreadPerTaskExecutor();
-                var processing = pauseFirstCommit()) {
+                var commits = controlConcurrentCommits()) {
             var first =
-                    CompletableFuture.supplyAsync(() -> replace(session, key, purchase), executor);
-            await().atMost(TEST_TIMEOUT).until(processing.firstCommitEntered()::isDone);
+                    CompletableFuture.supplyAsync(
+                            () -> replace(session, key, purchase(15000)), executor);
+            await().atMost(TEST_TIMEOUT).until(commits.firstPrepared()::isDone);
 
             // When
             var second =
                     CompletableFuture.supplyAsync(
-                            () -> replace(session, key, conflicting), executor);
-            await().atMost(TEST_TIMEOUT).until(processing.secondRequestWaiting()::isDone);
-            assertThat(first).isNotDone();
-            assertThat(second).isNotDone();
+                            () -> replace(session, key, purchase(20000)), executor);
+            await().atMost(TEST_TIMEOUT).until(commits.secondPrepared()::isDone);
             assertStreamVersion(session, 1);
-            processing.resume();
+            commits.resume();
 
             // Then
             var winner = successfulReplacement(first.get(8, TimeUnit.SECONDS));
-            var problem =
-                    second.get(8, TimeUnit.SECONDS)
-                            .expectStatus()
-                            .isEqualTo(409)
-                            .expectHeader()
-                            .contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON)
-                            .expectBody(ProblemDetail.class)
-                            .returnResult()
-                            .getResponseBody();
-            assertThat(problem).isNotNull();
-            assertThat(problem.getProperties()).containsEntry("code", "IDEMPOTENCY_KEY_CONFLICT");
-            replace(session, key, conflicting).expectStatus().isEqualTo(409);
-            var current =
-                    client.get()
-                            .uri("/v1/sessions/{id}", session.sessionId())
-                            .exchange()
-                            .expectStatus()
-                            .isOk()
-                            .expectBody(PaymentSessionResponse.class)
-                            .returnResult()
-                            .getResponseBody();
-            assertThat(current).isEqualTo(winner);
-            assertThat(eventStore.previouslyCompletedResponse(idempotency(key, purchase)))
-                    .isPresent();
+            assertProblem(second.get(8, TimeUnit.SECONDS), "IDEMPOTENCY_KEY_CONFLICT");
+            assertProblem(replace(session, key, purchase(20000)), "IDEMPOTENCY_KEY_CONFLICT");
+            assertThat(read(session)).isEqualTo(winner);
             assertStreamVersion(session, 2);
-            assertThat(dynamo.get(commandPartition(key), "PROCESSING")).isNull();
         }
     }
 
     @Test
     @DisplayName(
-            "Should preserve the active owner When a concurrent request exceeds its wait deadline")
-    void shouldPreserveTheActiveOwnerWhenAConcurrentRequestExceedsItsWaitDeadline()
+            "Should replay the winning result When a concurrent commit follows the initial idempotency lookup")
+    void shouldReplayTheWinningResultWhenAConcurrentCommitFollowsTheInitialIdempotencyLookup()
             throws Exception {
         // Given
         var session = createSession();
-        String key = UUID.randomUUID().toString();
-        var purchase = new ChangePurchaseRequest(15000, "BRL", null, null);
-        try (var executor = Executors.newVirtualThreadPerTaskExecutor();
-                var processing = pauseFirstCommit()) {
-            var first =
-                    CompletableFuture.supplyAsync(() -> replace(session, key, purchase), executor);
-            await().atMost(TEST_TIMEOUT).until(processing.firstCommitEntered()::isDone);
+        String key = newKey();
+        var loaded = new CompletableFuture<Void>();
+        var resume = new CompletableFuture<Void>();
+        var first = new AtomicInteger();
+        doAnswer(
+                        invocation -> {
+                            if (first.getAndIncrement() == 0) {
+                                loaded.complete(null);
+                                resume.get(12, TimeUnit.SECONDS);
+                            }
+                            return invocation.callRealMethod();
+                        })
+                .when(eventStore)
+                .load(any());
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            try {
+                var delayed =
+                        CompletableFuture.supplyAsync(
+                                () -> replace(session, key, purchase(15000)), executor);
+                await().atMost(TEST_TIMEOUT).until(loaded::isDone);
 
-            // When
-            var second =
-                    CompletableFuture.supplyAsync(() -> replace(session, key, purchase), executor);
-            await().atMost(TEST_TIMEOUT).until(processing.secondRequestWaiting()::isDone);
-            var problem =
-                    second.get(8, TimeUnit.SECONDS)
-                            .expectStatus()
-                            .isEqualTo(503)
-                            .expectBody(ProblemDetail.class)
-                            .returnResult()
-                            .getResponseBody();
+                // When
+                var winner = successfulReplacement(replace(session, key, purchase(15000)));
+                resume.complete(null);
 
-            // Then
-            assertThat(problem).isNotNull();
-            assertThat(problem.getProperties())
-                    .containsEntry("code", "SESSION_COMMAND_IN_PROGRESS");
-            assertThat(first).isNotDone();
-            assertStreamVersion(session, 1);
-            assertThat(dynamo.get(commandPartition(key), "PROCESSING")).isNotNull();
-            assertThat(eventStore.previouslyCompletedResponse(idempotency(key, purchase)))
-                    .isEmpty();
-            processing.resume();
-            var winner = successfulReplacement(first.get(8, TimeUnit.SECONDS));
-            assertThat(successfulReplacement(replace(session, key, purchase))).isEqualTo(winner);
-            assertStreamVersion(session, 2);
-            assertThat(dynamo.get(commandPartition(key), "PROCESSING")).isNull();
+                // Then
+                assertThat(successfulReplacement(delayed.get(8, TimeUnit.SECONDS)))
+                        .isEqualTo(winner);
+                assertStreamVersion(session, 2);
+            } finally {
+                resume.complete(null);
+            }
         }
+    }
+
+    @Test
+    @DisplayName(
+            "Should complete the replacement When Spring retries transient DynamoDB transaction conflicts")
+    void shouldCompleteTheReplacementWhenSpringRetriesTransientDynamoDBTransactionConflicts() {
+        // Given
+        var session = createSession();
+        clearInvocations(dynamo);
+        var attempts = new AtomicInteger();
+        doAnswer(
+                        invocation -> {
+                            if (attempts.getAndIncrement() < 2)
+                                throw cancellation("TransactionConflict");
+                            return invocation.callRealMethod();
+                        })
+                .when(dynamo)
+                .transaction(anyList(), anyString());
+
+        // When
+        var result = successfulReplacement(replace(session, newKey(), purchase(15000)));
+
+        // Then
+        assertThat(result.purchase().amountMinor()).isEqualTo(15000);
+        verify(dynamo, times(3)).transaction(anyList(), anyString());
+        assertStreamVersion(session, 2);
+    }
+
+    @Test
+    @DisplayName(
+            "Should return a retryable HTTP failure When Spring exhausts transaction conflict retries")
+    void shouldReturnARetryableHTTPFailureWhenSpringExhaustsTransactionConflictRetries() {
+        // Given
+        var session = createSession();
+        clearInvocations(dynamo);
+        String key = newKey();
+        doThrow(cancellation("TransactionConflict"))
+                .when(dynamo)
+                .transaction(anyList(), anyString());
+
+        // When
+        replace(session, key, purchase(15000)).expectStatus().isEqualTo(503);
+
+        // Then
+        verify(dynamo, times(4)).transaction(anyList(), anyString());
+        assertStreamVersion(session, 1);
+        doCallRealMethod().when(dynamo).transaction(anyList(), anyString());
+        successfulReplacement(replace(session, key, purchase(15000)));
+        assertStreamVersion(session, 2);
+    }
+
+    @Test
+    @DisplayName(
+            "Should avoid retrying the transaction When cancellation reports a failed condition")
+    void shouldAvoidRetryingTheTransactionWhenCancellationReportsAFailedCondition() {
+        // Given
+        var session = createSession();
+        clearInvocations(dynamo);
+        doThrow(cancellation("ConditionalCheckFailed"))
+                .when(dynamo)
+                .transaction(anyList(), anyString());
+
+        // When
+        replace(session, newKey(), purchase(15000)).expectStatus().isEqualTo(503);
+
+        // Then
+        verify(dynamo, times(1)).transaction(anyList(), anyString());
+        assertStreamVersion(session, 1);
     }
 
     @Test
@@ -219,76 +243,30 @@ class ConcurrentPurchaseReplacementTest {
     void shouldReplayTheCompletedReplacementWhenTheCommitResponseIsLost() {
         // Given
         var session = createSession();
-        String key = UUID.randomUUID().toString();
-        var purchase = new ChangePurchaseRequest(15000, "BRL", null, null);
-        var first = new AtomicBoolean(true);
+        String key = newKey();
         doAnswer(
                         invocation -> {
-                            Object result = invocation.callRealMethod();
-                            if (first.compareAndSet(true, false)) {
-                                throw SdkClientException.create("Simulated lost commit response");
-                            }
-                            return result;
+                            invocation.callRealMethod();
+                            throw SdkClientException.create("Simulated lost commit response");
                         })
-                .when(eventStore)
-                .append(any(), any());
+                .when(dynamo)
+                .transaction(anyList(), anyString());
 
         // When
-        replace(session, key, purchase).expectStatus().isEqualTo(503);
+        replace(session, key, purchase(15000)).expectStatus().isEqualTo(503);
 
         // Then
         assertStreamVersion(session, 2);
-        assertThat(dynamo.get(commandPartition(key), "PROCESSING")).isNull();
-        var recovered = successfulReplacement(replace(session, key, purchase));
-        assertThat(recovered.purchase().amountMinor()).isEqualTo(15000);
-        assertThat(successfulReplacement(replace(session, key, purchase))).isEqualTo(recovered);
+        doCallRealMethod().when(dynamo).transaction(anyList(), anyString());
+        var recovered = successfulReplacement(replace(session, key, purchase(15000)));
+        assertThat(read(session)).isEqualTo(recovered);
         assertStreamVersion(session, 2);
-    }
-
-    @Test
-    @DisplayName(
-            "Should retain ownership until retry takeover When persistence fails before completion")
-    void shouldRetainOwnershipUntilRetryTakeoverWhenPersistenceFailsBeforeCompletion() {
-        // Given
-        var session = createSession();
-        String key = UUID.randomUUID().toString();
-        var purchase = new ChangePurchaseRequest(15000, "BRL", null, null);
-        var first = new AtomicBoolean(true);
-        doAnswer(
-                        invocation -> {
-                            if (first.compareAndSet(true, false)) {
-                                throw SdkClientException.create(
-                                        "Simulated unavailable persistence");
-                            }
-                            return invocation.callRealMethod();
-                        })
-                .when(eventStore)
-                .append(any(), any());
-
-        // When
-        replace(session, key, purchase).expectStatus().isEqualTo(503);
-
-        // Then
-        assertStreamVersion(session, 1);
-        assertThat(dynamo.get(commandPartition(key), "PROCESSING")).isNotNull();
-        assertThat(eventStore.previouslyCompletedResponse(idempotency(key, purchase))).isEmpty();
-        dynamo.client.updateItem(
-                builder ->
-                        builder.tableName(TABLE)
-                                .key(Dynamo.key(commandPartition(key), "PROCESSING"))
-                                .updateExpression("SET leaseUntil = :expired")
-                                .expressionAttributeValues(
-                                        Map.of(":expired", Dynamo.numberAttribute(0))));
-        var recovered = successfulReplacement(replace(session, key, purchase));
-        assertThat(recovered.purchase().amountMinor()).isEqualTo(15000);
-        assertStreamVersion(session, 2);
-        assertThat(dynamo.get(commandPartition(key), "PROCESSING")).isNull();
     }
 
     private PaymentSessionResponse createSession() {
         return client.post()
                 .uri("/v1/sessions")
-                .header("Idempotency-Key", UUID.randomUUID().toString())
+                .header("Idempotency-Key", newKey())
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(new CreatePaymentSessionRequest(10000, "BRL", null, null))
                 .exchange()
@@ -320,6 +298,28 @@ class ConcurrentPurchaseReplacementTest {
                 .getResponseBody();
     }
 
+    private void assertProblem(RestTestClient.ResponseSpec response, String code) {
+        var problem =
+                response.expectStatus()
+                        .isEqualTo(409)
+                        .expectBody(ProblemDetail.class)
+                        .returnResult()
+                        .getResponseBody();
+        assertThat(problem).isNotNull();
+        assertThat(problem.getProperties()).containsEntry("code", code);
+    }
+
+    private PaymentSessionResponse read(PaymentSessionResponse session) {
+        return client.get()
+                .uri("/v1/sessions/{id}", session.sessionId())
+                .exchange()
+                .expectStatus()
+                .isOk()
+                .expectBody(PaymentSessionResponse.class)
+                .returnResult()
+                .getResponseBody();
+    }
+
     private void assertStreamVersion(PaymentSessionResponse session, long version) {
         String partition = "M#" + MERCHANT + "#S#" + session.sessionId();
         assertThat(dynamo.query(partition, "EVT#")).hasSize((int) version);
@@ -327,65 +327,68 @@ class ConcurrentPurchaseReplacementTest {
         assertThat(dynamo.get(partition, "HEAD").get("version")).isEqualTo(version);
     }
 
-    private String commandPartition(String key) {
-        return "M#" + MERCHANT + "#IDEMP#" + lab.common.Json.sha256("CHANGE_PURCHASE:v1:" + key);
+    private ChangePurchaseRequest purchase(long amount) {
+        return new ChangePurchaseRequest(amount, "BRL", null, null);
     }
 
-    private IdempotencyRequest idempotency(String key, ChangePurchaseRequest request) {
-        var purchase =
-                new Purchase(
-                        ((Number) request.amountMinor()).longValue(),
-                        request.currency(),
-                        request.merchantReference() == null ? "" : request.merchantReference(),
-                        request.attributes() == null ? Map.of() : request.attributes());
-        return new IdempotencyRequest(
-                new IdempotencyScope(new MerchantId(MERCHANT), "CHANGE_PURCHASE", "v1"),
-                key,
-                lab.common.Json.fingerprint(Map.of("purchase", purchase, "expectedVersion", 1L)));
+    private String newKey() {
+        return UUID.randomUUID().toString();
     }
 
-    private ProcessingControl pauseFirstCommit() {
-        var control = new ProcessingControl();
-        var first = new AtomicBoolean(true);
+    private TransactionCanceledException cancellation(String reason) {
+        return TransactionCanceledException.builder()
+                .cancellationReasons(CancellationReason.builder().code(reason).build())
+                .build();
+    }
+
+    private ConcurrentCommits controlConcurrentCommits() {
+        var control = new ConcurrentCommits();
+        var attempts = new AtomicInteger();
         doAnswer(
                         invocation -> {
-                            if (first.compareAndSet(true, false)) {
-                                control.firstCommitEntered().complete(null);
-                                control.resumeCommit().get(12, TimeUnit.SECONDS);
+                            int attempt = attempts.getAndIncrement();
+                            if (attempt == 0) {
+                                control.firstPrepared().complete(null);
+                                control.resumeFirst().get(12, TimeUnit.SECONDS);
+                                try {
+                                    return invocation.callRealMethod();
+                                } finally {
+                                    control.firstCommitted().complete(null);
+                                }
+                            }
+                            if (attempt == 1) {
+                                control.secondPrepared().complete(null);
+                                control.firstCommitted().get(12, TimeUnit.SECONDS);
                             }
                             return invocation.callRealMethod();
                         })
-                .when(eventStore)
-                .append(any(), any());
-        doAnswer(
-                        invocation -> {
-                            Object result = invocation.callRealMethod();
-                            if (((Optional<?>) result).isEmpty()) {
-                                control.secondRequestWaiting().complete(null);
-                            }
-                            return result;
-                        })
-                .when(reservations)
-                .acquire(any());
+                .when(dynamo)
+                .transaction(anyList(), anyString());
         return control;
     }
 
-    private record ProcessingControl(
-            CompletableFuture<Void> firstCommitEntered,
-            CompletableFuture<Void> secondRequestWaiting,
-            CompletableFuture<Void> resumeCommit)
+    private record ConcurrentCommits(
+            CompletableFuture<Void> firstPrepared,
+            CompletableFuture<Void> secondPrepared,
+            CompletableFuture<Void> resumeFirst,
+            CompletableFuture<Void> firstCommitted)
             implements AutoCloseable {
-        ProcessingControl() {
-            this(new CompletableFuture<>(), new CompletableFuture<>(), new CompletableFuture<>());
+        ConcurrentCommits() {
+            this(
+                    new CompletableFuture<>(),
+                    new CompletableFuture<>(),
+                    new CompletableFuture<>(),
+                    new CompletableFuture<>());
         }
 
         void resume() {
-            resumeCommit.complete(null);
+            resumeFirst.complete(null);
         }
 
         @Override
         public void close() {
             resume();
+            firstCommitted.complete(null);
         }
     }
 }

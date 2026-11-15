@@ -18,8 +18,8 @@ Keep request/response objects typed. Persist intent and stable external request 
 
 Use WireMock request observation and Awaitility to establish arrival. A response delay exercises latency, but a fixed delay alone cannot guarantee the second request entered the wait path before the first completed. Select a supported WireMock extension or test-controlled response gate during implementation and bound every wait. Keep synchronization inside the test support.
 
-The current PUT tests use MockitoSpyBean around real application/persistence beans, with test-local CompletableFuture gates. They prove replacement coordination without introducing an artificial outbound HTTP dependency into purchase replacement.
+The current PUT tests use MockitoSpyBean around real application/persistence beans, with test-local CompletableFuture gates. They prove conditional transaction reconciliation and framework retries. They do not implement a wait queue or establish the future authorization ownership protocol.
 
 ## Dependencies and remaining design
 
-Resolve compatible stable WireMock Spring Boot integration dependencies when this phase is implemented. Define the authorization endpoint, accepted response contract, durable intent states, external idempotency identity, unknown-result recovery and operation-owner fencing first. Do not infer these guarantees from the existing simulator or replacement reservations.
+Resolve compatible stable WireMock Spring Boot integration dependencies when this phase is implemented. Define the authorization endpoint, accepted response contract, durable intent states, external idempotency identity, unknown-result recovery and operation-owner fencing first. Do not infer these guarantees from the existing simulator or current replacement transaction retries.

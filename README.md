@@ -11,7 +11,7 @@ The question: how can an event-sourced payment system keep its decisions durable
 - A **session** belongs to one merchant and holds a replaceable purchase.
 - A **purchase revision** is immutable; events reference its chunked payload.
 - **Events** are the business history. A conditional transaction saves new events, session projections and the idempotent result together.
-- Retrying a completed command returns its **original result**, even after the session changes. Concurrent purchase replacements using the same key wait within a bounded deadline for that result.
+- Retrying a completed command returns its **original result**, even after the session changes. Concurrent purchase replacements use conditional transactions and bounded Spring retries to reconcile the persisted winner.
 - The standalone simulator records effects before simulating a lost response.
 
 ```mermaid

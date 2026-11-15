@@ -10,7 +10,8 @@ Short records explain **why**, while [requirements](../requirements.md) track wh
 | [0004 — Compose and executable BDD](0004-compose-and-bdd.md) | One infrastructure definition; behavior evidence must actually execute |
 | [0005 — Cohesive parameters](0005-cohesive-parameters.md) | A project guardrail, not a universal numeric law |
 | [0006 — Living documentation](0006-living-documentation.md) | Short entry point, traceable requirements and repo-local agent workflow |
-| [0007 — Concurrent replacement reservations](0007-concurrent-replacement-reservations.md) | Bounded waiting and fenced command ownership; extra coordination writes and expiry handling |
+| [0007 — Concurrent replacement reservations](0007-concurrent-replacement-reservations.md) | Superseded by ADR-0008 |
+| [0008 — Native transaction retries](0008-native-transaction-retries.md) | Conditional writes and declarative Spring retry; bounded contention with no arrival-order queue |
 
 For a material new decision, copy the [template](template.md), allocate the next number and update this index. Accepted decisions are historical: add a superseding record if the choice changes. Correct factual mistakes transparently.
 

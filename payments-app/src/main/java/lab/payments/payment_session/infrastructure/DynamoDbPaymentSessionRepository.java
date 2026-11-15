@@ -14,6 +14,7 @@ import lab.common.PaymentConflictException;
 import lab.payments.payment_session.application.*;
 import lab.payments.payment_session.domain.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.resilience.annotation.Retryable;
 import org.springframework.stereotype.Repository;
 import software.amazon.awssdk.services.dynamodb.model.*;
 
@@ -50,10 +51,17 @@ public class DynamoDbPaymentSessionRepository implements PaymentSessionRepositor
     }
 
     @Override
+    @Retryable(
+            includes = TransactionCanceledException.class,
+            predicate = DynamoDbTransactionConflictPredicate.class,
+            maxRetriesString = "${lab.transaction-max-retries:3}",
+            delayString = "${lab.transaction-retry-delay-ms:50}",
+            multiplier = 2,
+            jitter = 10)
     public StoredSessionResult save(
             PaymentSessionAggregate session, CompletedSessionCommand completion) {
         var commit = new SessionCommit(session, completion);
-        var result = commit(commit);
+        var result = idempotentResponse(completion.idempotency()).orElseGet(() -> commit(commit));
         session.markChangesPersisted();
         return result;
     }
@@ -86,22 +94,6 @@ public class DynamoDbPaymentSessionRepository implements PaymentSessionRepositor
         writes.addAll(projectionWrites(commit));
         writes.add(completedResultWrite(commit));
         writes.addAll(referenceWrites(commit));
-        var reservation = commit.completion().reservation();
-        if (reservation != null) {
-            var release =
-                    Delete.builder()
-                            .tableName(dynamo.table)
-                            .key(Dynamo.key(commit.idempotencyPartitionKey(), "PROCESSING"))
-                            .conditionExpression("leaseOwner = :owner AND leaseUntil > :now")
-                            .expressionAttributeValues(
-                                    Map.of(
-                                            ":owner", Dynamo.stringAttribute(reservation.owner()),
-                                            ":now",
-                                                    Dynamo.numberAttribute(
-                                                            System.currentTimeMillis())))
-                            .build();
-            writes.add(TransactWriteItem.builder().delete(release).build());
-        }
         return writes;
     }
 
