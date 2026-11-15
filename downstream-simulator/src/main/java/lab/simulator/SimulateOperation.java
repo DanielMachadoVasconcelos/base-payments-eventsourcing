@@ -1,6 +1,7 @@
 package lab.simulator;
 
 import java.util.Map;
+
 import lab.common.PaymentValidationException;
 
 public record SimulateOperation(SimulatorOperationKey key, Map<String, Object> request) {

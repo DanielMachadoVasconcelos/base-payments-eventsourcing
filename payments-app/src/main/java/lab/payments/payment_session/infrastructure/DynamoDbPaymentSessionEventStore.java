@@ -1,6 +1,7 @@
 package lab.payments.payment_session.infrastructure;
 
 import java.util.Optional;
+
 import lab.payments.payment_session.application.*;
 import lab.payments.payment_session.domain.*;
 import lombok.RequiredArgsConstructor;
@@ -22,8 +23,8 @@ public class DynamoDbPaymentSessionEventStore implements PaymentSessionEventStor
     }
 
     @Override
-    public StoredSessionResult append(
-            PaymentSessionAggregate aggregate, CompletedSessionCommand completion) {
+    public StoredSessionResult append(PaymentSessionAggregate aggregate,
+                                      CompletedSessionCommand completion) {
         return repository.save(aggregate, completion);
     }
 }

@@ -4,7 +4,9 @@ public abstract class PaymentDomainException extends RuntimeException {
     private final int httpStatus;
     private final String code;
 
-    protected PaymentDomainException(int httpStatus, String code, String message) {
+    protected PaymentDomainException(int httpStatus,
+                                     String code,
+                                     String message) {
         super(message);
         this.httpStatus = httpStatus;
         this.code = code;

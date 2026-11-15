@@ -11,7 +11,7 @@ The question: how can an event-sourced payment system keep its decisions durable
 - A **session** belongs to one merchant and holds a replaceable purchase.
 - A **purchase revision** is immutable; events reference its chunked payload.
 - **Events** are the business history. A conditional transaction saves new events, session projections and the idempotent result together.
-- Retrying a completed command returns its **original result**, even after the session changes.
+- Retrying a completed command returns its **original result**, even after the session changes. Concurrent purchase replacements use conditional transactions and bounded Spring retries to reconcile the persisted winner.
 - The standalone simulator records effects before simulating a lost response.
 
 ```mermaid
@@ -55,9 +55,9 @@ DynamoDB uses port 8000 and a persistent Compose volume. Ordinary `docker compos
 Python 3.9+ is needed only for the documentation checks; the application uses Java.
 
 ```bash
-./gradlew check                 # unit tests, formatting, parameter rules
+./gradlew check                 # unit tests, source cleanup, parameter rules
 ./gradlew integrationTest       # starts DynamoDB through the shared Compose file
-./gradlew spotlessApply         # formats Java
+./gradlew spotlessApply         # removes unused imports and normalizes whitespace
 python3 scripts/check-docs.py   # local documentation links, IDs and evidence
 ```
 

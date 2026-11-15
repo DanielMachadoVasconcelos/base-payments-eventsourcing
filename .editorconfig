@@ -10,3 +10,13 @@ indent_size = 4
 
 [*.{yaml,yml}]
 indent_size = 2
+
+
+[*.java]
+ij_java_align_multiline_parameters = true
+ij_java_align_multiline_parameters_in_calls = true
+ij_java_align_multiline_chained_methods = true
+ij_java_keep_line_breaks = true
+ij_java_method_parameters_new_line_after_left_paren = false
+ij_java_method_parameters_right_paren_on_new_line = false
+ij_java_wrap_first_method_in_call_chain = false

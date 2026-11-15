@@ -12,8 +12,7 @@ public class GetPaymentSessionService {
 
     public PaymentSessionView get(PaymentSessionIdentity identity) {
         var session = eventStore.load(identity).orElseThrow(PaymentSessionNotFoundException::new);
-        return PaymentSessionView.from(
-                session,
-                purchasePayloadStore.load(identity.merchantId(), session.purchasePayloadId()));
+        return PaymentSessionView.from(session,
+                                       purchasePayloadStore.load(identity.merchantId(), session.purchasePayloadId()));
     }
 }

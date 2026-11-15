@@ -107,6 +107,40 @@ Implementation: [DynamoDbPaymentSessionRepository.java](../payments-app/src/main
 
 Evidence: [shouldReturnTheSameSessionForEverySuccessfulResponseWhenIdenticalCreationCommandsRace()](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionComposeIntegrationTest.java)
 
+### REQ-IDEM-006 — Wait for a concurrent purchase replacement
+
+Status: Superseded
+
+The synchronous wait and command-reservation design was replaced by REQ-IDEM-008 and REQ-IDEM-009. HTTP arrival order does not reserve precedence. See [ADR-0008](decisions/0008-native-transaction-retries.md).
+
+### REQ-IDEM-007 — Fence expired replacement owners
+
+Status: Retired
+
+Purchase replacement no longer creates PROCESSING records or application leases. DynamoDB transaction conditions protect the stream and completed result under REQ-IDEM-008. External-effect ownership/recovery remains planned under REQ-REC-001. Historical rationale is preserved in [ADR-0007](decisions/0007-concurrent-replacement-reservations.md).
+
+### REQ-IDEM-008 — Resolve concurrent replacements using conditional transactions
+
+Status: Verified
+
+Acceptance: Given overlapping replacements prepared from the same stream version and scoped key, when one transaction commits, then identical content resolves the persisted winner and different content receives 409 IDEMPOTENCY_KEY_CONFLICT. The stream gains one replacement event and projections advance once. HTTP arrival order does not determine the winner. A winner committed between initial result lookup and stream load is reconciled before reporting a stale version.
+
+Implementation: [DynamoDbPaymentSessionRepository.java](../payments-app/src/main/java/lab/payments/payment_session/infrastructure/DynamoDbPaymentSessionRepository.java), [ChangePurchaseService.java](../payments-app/src/main/java/lab/payments/payment_session/application/ChangePurchaseService.java)
+
+Evidence: [shouldReplayTheWinningReplacementWhenIdenticalConcurrentRequestsPrepareTheSameStreamVersion()](../payments-app/src/test/java/lab/payments/payment_session/ConcurrentPurchaseReplacementTest.java), [shouldRejectConflictingContentWhenConcurrentReplacementsShareAnIdempotencyKey()](../payments-app/src/test/java/lab/payments/payment_session/ConcurrentPurchaseReplacementTest.java), [shouldReplayTheWinningResultWhenAConcurrentCommitFollowsTheInitialIdempotencyLookup()](../payments-app/src/test/java/lab/payments/payment_session/ConcurrentPurchaseReplacementTest.java)
+
+### REQ-IDEM-009 — Bound transient transaction retries through Spring
+
+Status: Verified
+
+Acceptance: Given a transaction cancellation containing TransactionConflict and otherwise only None reasons, when no completed result is available, then Spring retries repository persistence with bounded exponential backoff. A conditional or other permanent cancellation is not selected for retry. Exhaustion returns 503 and the caller can retry the same key. A lost commit response is recovered from the completed result.
+
+Implementation: [PaymentSessionPolicies.java](../payments-app/src/main/java/lab/payments/configuration/PaymentSessionPolicies.java), [DynamoDbTransactionConflictPredicate.java](../payments-app/src/main/java/lab/payments/payment_session/infrastructure/DynamoDbTransactionConflictPredicate.java)
+
+Evidence: [shouldCompleteTheReplacementWhenSpringRetriesTransientDynamoDBTransactionConflicts()](../payments-app/src/test/java/lab/payments/payment_session/ConcurrentPurchaseReplacementTest.java), [shouldReturnARetryableHTTPFailureWhenSpringExhaustsTransactionConflictRetries()](../payments-app/src/test/java/lab/payments/payment_session/ConcurrentPurchaseReplacementTest.java), [shouldAvoidRetryingTheTransactionWhenCancellationReportsAFailedCondition()](../payments-app/src/test/java/lab/payments/payment_session/ConcurrentPurchaseReplacementTest.java), [shouldReplayTheCompletedReplacementWhenTheCommitResponseIsLost()](../payments-app/src/test/java/lab/payments/payment_session/ConcurrentPurchaseReplacementTest.java)
+
+Transient failures are injected at the SDK transaction boundary and successful attempts persist to real DynamoDB Local. The overlapping-request tests control commit order inside test fixtures. They establish deterministic conflicting snapshots, without claiming a native DynamoDB wait queue or simultaneous server-side transaction scheduling.
+
 ### REQ-EVT-001 — Replay stored facts without renewing them
 
 Status: Verified
@@ -207,11 +241,11 @@ Status: Adopted
 
 Use [compose.yaml](../compose.yaml) for development and integration dependencies. The [Gradle integration task](../build.gradle) starts that same definition and JUnit suites use isolated tables. No Testcontainers.
 
-### REQ-ENG-002 — Domain language and framework-assisted mapping
+### REQ-ENG-002 — Domain language and framework capabilities
 
 Status: Adopted
 
-Follow the [architecture](architecture.md), use domain command/value objects, inject Spring-managed JSON mapping and use [MapStruct configuration](../payments-app/src/main/java/lab/payments/configuration/PaymentMappingConfiguration.java), records and Lombok for appropriate boilerplate. Business decisions remain in the aggregate.
+Follow the [architecture](architecture.md), use domain command/value objects, inject Spring-managed JSON mapping and use [MapStruct configuration](../payments-app/src/main/java/lab/payments/configuration/PaymentMappingConfiguration.java), records and Lombok for appropriate boilerplate. Business decisions remain in the aggregate. Apply the [framework reuse rule](../CONTRIBUTING.md) before adding technical methods, helpers or coordinators. Prefer existing supported capabilities, official compatible Spring Boot starters and maintained libraries. Custom technical code requires a documented capability gap in the PR.
 
 ### REQ-ENG-003 — Cohesive method parameters
 
@@ -237,11 +271,29 @@ Status: Adopted
 
 JUnit runs classes concurrently with two workers and keeps methods sequential. [Payment test configuration](../payments-app/src/test/resources/junit-platform.properties) and [simulator test configuration](../downstream-simulator/src/test/resources/junit-platform.properties) use the same policy. Integration suites allocate independent UUID table names and random HTTP ports and delete their own tables after the class completes.
 
+### REQ-ENG-007 — Cohesive methods and declarative technical capabilities
+
+Status: Adopted
+
+Each method expresses one cohesive operation at one abstraction level. Application services coordinate named use-case steps, aggregates own business invariants and adapters own persistence details. Prefer supported framework annotations for technical capabilities and composed annotations for reusable policies with verified semantics. Preserve meaningful concurrency/error paths when extracting methods.
+
+References: [Agent rules](../AGENTS.md), [contribution guidance](../CONTRIBUTING.md), [implemented service decomposition](service-method-assessment.md). ChangePurchaseService uses named cohesive steps and one final response reconstruction. IdempotencyRequest owns its operation-specific descriptor factory. REQ-IDEM-008/009 retain the behavioral evidence for concurrency and retry boundaries.
+
+### REQ-ENG-008 — Readable aligned Java layout
+
+Status: Adopted
+
+Use four spaces, align wrapped declaration parameters beneath the first parameter and align wrapped method-chain dots with the first call's dot. Preserve the receiver/first-call line and intentional readable line breaks. [EditorConfig](../.editorconfig) supplies IntelliJ alignment settings. [Spotless](../build.gradle) cleans unused imports, trailing whitespace and final newlines. Alignment/wrapping is an IDE and review convention.
+
+References: [Contribution guide](../CONTRIBUTING.md), [shared IntelliJ profile](../config/formatting/intellij-java.xml), [reference class](../payments-app/src/main/java/lab/payments/payment_session/application/ChangePurchaseService.java). Production and test Java sources have been processed with the native formatter. The profile uses a 120-column margin and preserves future intentional line breaks.
+
 ## Planned payment workflow
 
 ### REQ-AUT-001 — Durable authorizations and immutable snapshots
 
 Status: Planned
+
+See the [planned WireMock scenarios](authorization-test-plan.md) for concurrent slow-Issuer acceptance tests.
 
 Acceptance target: Persist authorization intent, external identities and both channel tokens before calling the Issuer; preserve old valid authorizations after purchase replacement.
 

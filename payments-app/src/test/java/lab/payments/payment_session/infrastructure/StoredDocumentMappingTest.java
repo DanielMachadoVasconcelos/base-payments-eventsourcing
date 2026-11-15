@@ -10,8 +10,7 @@ import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 
 class StoredDocumentMappingTest {
     @Test
-    @DisplayName(
-            "Should preserve key mappings When the enhanced client builds the stored document schema")
+    @DisplayName("Should preserve key mappings When the enhanced client builds the stored document schema")
     void shouldPreserveKeyMappingsWhenTheEnhancedClientBuildsTheStoredDocumentSchema() {
         // Given
         var document = new StoredDocument();

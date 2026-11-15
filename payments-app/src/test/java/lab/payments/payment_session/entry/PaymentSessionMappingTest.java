@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.time.Instant;
 import java.util.Map;
 import java.util.stream.Stream;
+
 import lab.common.PaymentValidationException;
 import lab.payments.payment_session.application.PaymentSessionView;
 import lab.payments.payment_session.application.SessionWriteContext;
@@ -21,19 +22,17 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 
-@SpringJUnitConfig({
-    PaymentSessionRequestMapperImpl.class,
-    PaymentSessionResponseMapperImpl.class,
-    PaymentSessionInputConversions.class
-})
+@SpringJUnitConfig({PaymentSessionRequestMapperImpl.class, PaymentSessionResponseMapperImpl.class, PaymentSessionInputConversions.class})
 class PaymentSessionMappingTest {
-    @Autowired private PaymentSessionRequestMapper requestMapper;
-    @Autowired private PaymentSessionResponseMapper responseMapper;
-    @Autowired private PaymentSessionInputConversions conversions;
+    @Autowired
+    private PaymentSessionRequestMapper requestMapper;
+    @Autowired
+    private PaymentSessionResponseMapper responseMapper;
+    @Autowired
+    private PaymentSessionInputConversions conversions;
 
     @Test
-    @DisplayName(
-            "Should preserve defaults and identifiers When optional request fields are omitted")
+    @DisplayName("Should preserve defaults and identifiers When optional request fields are omitted")
     void shouldPreserveDefaultsAndIdentifiersWhenOptionalRequestFieldsAreOmitted() {
         // Given
         var request = new CreatePaymentSessionRequest(10000, "BRL", null, null);
@@ -48,8 +47,7 @@ class PaymentSessionMappingTest {
     }
 
     @Test
-    @DisplayName(
-            "Should preserve the expected version and full purchase When mapping a replacement request")
+    @DisplayName("Should preserve the expected version and full purchase When mapping a replacement request")
     void shouldPreserveTheExpectedVersionAndFullPurchaseWhenMappingAReplacementRequest() {
         // Given
         var attributes = Map.<String, Object>of("items", java.util.List.of("first", "second"));
@@ -61,8 +59,7 @@ class PaymentSessionMappingTest {
         // Then
         assertThat(command.context().identity().sessionId().value()).isEqualTo("session-a");
         assertThat(command.context().expectedVersion()).isEqualTo(2);
-        assertThat(command.purchase())
-                .isEqualTo(new Purchase(15000, "BRL", "cart-150", attributes));
+        assertThat(command.purchase()).isEqualTo(new Purchase(15000, "BRL", "cart-150", attributes));
     }
 
     @ParameterizedTest
@@ -73,10 +70,8 @@ class PaymentSessionMappingTest {
         var request = new CreatePaymentSessionRequest(amountMinor, "BRL", null, null);
 
         // When / Then
-        assertThatThrownBy(() -> requestMapper.create("merchant-a", "create-key", request))
-                .isInstanceOfSatisfying(
-                        PaymentValidationException.class,
-                        exception -> assertThat(exception.code()).isEqualTo("INVALID_AMOUNT"));
+        assertThatThrownBy(() -> requestMapper.create("merchant-a", "create-key", request)).isInstanceOfSatisfying(
+            PaymentValidationException.class, exception -> assertThat(exception.code()).isEqualTo("INVALID_AMOUNT"));
     }
 
     static Stream<Object> invalidAmounts() {
@@ -92,10 +87,8 @@ class PaymentSessionMappingTest {
         var request = new CreatePaymentSessionRequest(10000, currency, null, null);
 
         // When / Then
-        assertThatThrownBy(() -> requestMapper.create("merchant-a", "create-key", request))
-                .isInstanceOfSatisfying(
-                        PaymentValidationException.class,
-                        exception -> assertThat(exception.code()).isEqualTo("INVALID_CURRENCY"));
+        assertThatThrownBy(() -> requestMapper.create("merchant-a", "create-key", request)).isInstanceOfSatisfying(
+            PaymentValidationException.class, exception -> assertThat(exception.code()).isEqualTo("INVALID_CURRENCY"));
     }
 
     @ParameterizedTest
@@ -107,10 +100,8 @@ class PaymentSessionMappingTest {
         var request = new CreatePaymentSessionRequest(10000, "BRL", null, null);
 
         // When / Then
-        assertThatThrownBy(() -> requestMapper.create(merchantId, "create-key", request))
-                .isInstanceOfSatisfying(
-                        PaymentValidationException.class,
-                        exception -> assertThat(exception.code()).isEqualTo("INVALID_MERCHANT"));
+        assertThatThrownBy(() -> requestMapper.create(merchantId, "create-key", request)).isInstanceOfSatisfying(
+            PaymentValidationException.class, exception -> assertThat(exception.code()).isEqualTo("INVALID_MERCHANT"));
     }
 
     @ParameterizedTest
@@ -122,11 +113,9 @@ class PaymentSessionMappingTest {
         var request = new CreatePaymentSessionRequest(10000, "BRL", null, null);
 
         // When / Then
-        assertThatThrownBy(() -> requestMapper.create("merchant-a", idempotencyKey, request))
-                .isInstanceOfSatisfying(
-                        PaymentValidationException.class,
-                        exception ->
-                                assertThat(exception.code()).isEqualTo("INVALID_IDEMPOTENCY_KEY"));
+        assertThatThrownBy(() -> requestMapper.create("merchant-a", idempotencyKey, request)).isInstanceOfSatisfying(
+            PaymentValidationException.class,
+            exception -> assertThat(exception.code()).isEqualTo("INVALID_IDEMPOTENCY_KEY"));
     }
 
     @ParameterizedTest
@@ -138,21 +127,16 @@ class PaymentSessionMappingTest {
         var request = new ChangePurchaseRequest(10000, "BRL", null, null);
 
         // When / Then
-        assertThatThrownBy(() -> conversions.toExpectedVersion(versionHeader))
-                .isInstanceOfSatisfying(
-                        PaymentValidationException.class,
-                        exception -> assertThat(exception.code()).isEqualTo("INVALID_ETAG"));
+        assertThatThrownBy(() -> conversions.toExpectedVersion(versionHeader)).isInstanceOfSatisfying(
+            PaymentValidationException.class, exception -> assertThat(exception.code()).isEqualTo("INVALID_ETAG"));
     }
 
     @Test
-    @DisplayName(
-            "Should preserve status ETag and purchase When mapping a session view to HTTP responses")
+    @DisplayName("Should preserve status ETag and purchase When mapping a session view to HTTP responses")
     void shouldPreserveStatusETagAndPurchaseWhenMappingASessionViewToHTTPResponses() {
         // Given
         var purchase = new Purchase(15000, "BRL", null, Map.of("customer", "Ana"));
-        var session =
-                new PaymentSessionView(
-                        "session-a", purchase, 3, "OPEN", Instant.parse("2026-11-10T12:00:00Z"));
+        var session = new PaymentSessionView("session-a", purchase, 3, "OPEN", Instant.parse("2026-11-10T12:00:00Z"));
 
         var createdResponse = responseMapper.created(session);
         var currentResponse = responseMapper.ok(session);
@@ -162,18 +146,14 @@ class PaymentSessionMappingTest {
         assertThat(currentResponse.getStatusCode().value()).isEqualTo(200);
         assertThat(currentResponse.getHeaders().getETag()).isEqualTo("\"3\"");
         assertThat(currentResponse.getBody()).isEqualTo(createdResponse.getBody());
-        assertThat(currentResponse.getBody().purchase())
-                .isEqualTo(new PurchaseResponse(15000, "BRL", "", purchase.attributes()));
+        assertThat(currentResponse.getBody().purchase()).isEqualTo(
+            new PurchaseResponse(15000, "BRL", "", purchase.attributes()));
     }
 
     private SessionWriteContext context(String versionHeader) {
-        var identity =
-                new PaymentSessionIdentity(
-                        conversions.toMerchantId("merchant-a"),
-                        conversions.toSessionId("session-a"));
-        return new SessionWriteContext(
-                identity,
-                conversions.validatedIdempotencyKey("change-key"),
-                conversions.toExpectedVersion(versionHeader));
+        var identity = new PaymentSessionIdentity(conversions.toMerchantId("merchant-a"),
+                                                  conversions.toSessionId("session-a"));
+        return new SessionWriteContext(identity, conversions.validatedIdempotencyKey("change-key"),
+                                       conversions.toExpectedVersion(versionHeader));
     }
 }

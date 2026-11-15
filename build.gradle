@@ -5,7 +5,6 @@ plugins {
 spotless {
     java {
         target 'common/src/**/*.java', 'payments-app/src/**/*.java', 'downstream-simulator/src/**/*.java'
-        googleJavaFormat('1.36.1').aosp()
         removeUnusedImports()
         trimTrailingWhitespace()
         endWithNewline()

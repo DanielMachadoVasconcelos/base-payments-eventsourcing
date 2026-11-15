@@ -11,15 +11,14 @@ import org.mapstruct.Mapping;
 @Mapper(config = PaymentMappingConfiguration.class, uses = PaymentSessionInputConversions.class)
 public interface PaymentSessionRequestMapper {
     @Mapping(target = "purchase", source = "request")
-    @Mapping(
-            target = "idempotencyKey",
-            source = "idempotencyKey",
-            qualifiedByName = "validatedIdempotencyKey")
-    CreatePaymentSessionCommand create(
-            String merchantId, String idempotencyKey, CreatePaymentSessionRequest request);
+    @Mapping(target = "idempotencyKey", source = "idempotencyKey", qualifiedByName = "validatedIdempotencyKey")
+    CreatePaymentSessionCommand create(String merchantId,
+                                       String idempotencyKey,
+                                       CreatePaymentSessionRequest request);
 
     @Mapping(target = "purchase", source = "request")
-    ChangePurchaseCommand change(SessionWriteContext context, ChangePurchaseRequest request);
+    ChangePurchaseCommand change(SessionWriteContext context,
+                                 ChangePurchaseRequest request);
 
     @Mapping(target = "currency", qualifiedByName = "validatedCurrency")
     @Mapping(target = "merchantReference", defaultValue = "")

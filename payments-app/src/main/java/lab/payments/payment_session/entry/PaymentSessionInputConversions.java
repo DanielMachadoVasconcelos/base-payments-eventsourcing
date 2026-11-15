@@ -6,7 +6,9 @@ import lab.payments.payment_session.domain.PaymentSessionId;
 import org.mapstruct.Named;
 import org.springframework.stereotype.Component;
 
-/** Boundary validation used by the generated mapper; no persistence or business transitions. */
+/**
+ * Boundary validation used by the generated mapper; no persistence or business transitions.
+ */
 @Component
 public class PaymentSessionInputConversions {
     public MerchantId toMerchantId(String merchantId) {

@@ -109,6 +109,16 @@ The payload upload is **not** inside the session transaction. Interrupted upload
 
 On a same-key race, a losing writer reconciles the durable winner's response. On an unresolved persistence outcome, the API returns 503; clients retry the same key. A completed creation retry returns the original purchase, while GET returns the current purchase.
 
+## Concurrent purchase replacements
+
+PUT describes the command through IdempotencyRequest.forPurchaseChange, resolves a StoredSessionResult and reconstructs its response once. Named application-service steps load the stream, publish the revision, apply the aggregate command and append the completion. If a winner commits between lookup and load, ChangePurchaseService rechecks the completed result before reporting a version mismatch.
+
+DynamoDbPaymentSessionRepository uses conditional TransactWriteItems to persist events, projections and the completed result atomically. On a failed transaction it reads RESULT consistently and verifies the request fingerprint. Identical content replays the winner and conflicting content produces 409.
+
+Spring Framework 7 EnableResilientMethods and Retryable repeat repository persistence for selected transient transaction conflicts. Each attempt checks the existing result. DynamoDbTransactionConflictPredicate supplies the small SDK-specific cancellation-reason classification required by the framework's extension point. Conditional failures and validation errors are not selected. Exhaustion exposes the existing 503 contract.
+
+There is no separate PROCESSING reservation, lease or application polling loop. HTTP arrival order carries no ownership guarantee. Payload uploads remain outside the transaction. See [ADR-0008](decisions/0008-native-transaction-retries.md).
+
 ## DynamoDB layout
 
 Two independent tables: payments_lab and simulator_lab. Test names have unique suffixes.
@@ -130,6 +140,6 @@ Payloads use 200 KiB raw chunks, Base64-encoded with room for item metadata. A c
 
 ## Next boundary
 
-Authorization must persist an intent, call the simulator with stable identities, then commit the known result. Recovery, ownership leases, one-order reservation, outbox, retention and resumable purge remain [planned requirements](requirements.md). These diagrams do not represent them as running components.
+Authorization must persist an intent, call the simulator with stable identities, then commit the known result. External-effect recovery, authorization ownership leases, one-order reservation, outbox, retention and resumable purge remain [planned requirements](requirements.md). These diagrams do not represent them as running components.
 
 See [decision records](decisions/README.md) and [parameter guidelines](parameter-guidelines.md) for implementation choices.

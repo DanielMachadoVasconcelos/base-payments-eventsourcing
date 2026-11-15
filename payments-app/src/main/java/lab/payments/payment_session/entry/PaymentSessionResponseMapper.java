@@ -23,10 +23,8 @@ public interface PaymentSessionResponseMapper {
         return response(session, HttpStatus.OK);
     }
 
-    private ResponseEntity<PaymentSessionResponse> response(
-            PaymentSessionView session, HttpStatus status) {
-        return ResponseEntity.status(status)
-                .eTag(Long.toString(session.version()))
-                .body(toResponse(session));
+    private ResponseEntity<PaymentSessionResponse> response(PaymentSessionView session,
+                                                            HttpStatus status) {
+        return ResponseEntity.status(status).eTag(Long.toString(session.version())).body(toResponse(session));
     }
 }

@@ -21,6 +21,26 @@ For a new/changed requirement, behavior, HTTP contract or architecture decision,
 - When implementing the future payment workflow, persist intent before external business effects. Never hold a database transaction across an HTTP call.
 - Use specific business failures. Do not add LabException or expose tokens/payloads in routine logs.
 
+## Reuse framework capabilities
+
+- Before writing a technical helper, method, wrapper or coordinator, inspect the existing code, configured Spring Boot starters, Spring Framework APIs and AWS SDK/service capabilities for the required behavior.
+- Prefer an existing supported capability. For a missing capability, prefer an official compatible Spring Boot starter, then a maintained, established library. Use auto-configuration, dependency injection, declarative APIs and generated mapping/accessors to eliminate boilerplate.
+- Use framework or SDK facilities for retries, backoff, timeouts, scheduling and concurrency where they provide the required semantics. Establish whether coordination is local or distributed and whether idempotency covers a transaction or the complete HTTP command before choosing it.
+- Add custom technical code only for a demonstrated gap. Explain the alternatives considered and the missing guarantee in the PR. Keep that code minimal and cohesive. Business decisions still belong in the domain, and existing repository constraints continue to apply.
+
+## Java layout
+
+- Follow the existing ChangePurchaseService layout as the reference for new and edited Java. Use four spaces. Keep the first declaration parameter beside the opening parenthesis and align subsequent parameters beneath it when wrapping.
+- Keep the receiver and first call on the same line. Align subsequent chained-call dots vertically with the first dot when wrapping. Preserve intentional readable line breaks and keep short expressions on one line.
+- Use the IntelliJ Java settings in .editorconfig and config/formatting/intellij-java.xml. The profile uses a 120-column right margin. Spotless maintains unused imports, trailing whitespace and final newlines. Parameter/chain alignment is reviewed and applied by the IDE rather than enforced by spotlessCheck. Do not reintroduce a formatter that overrides this style or mass-reformat unrelated files.
+
+## Keep methods cohesive
+
+- Keep methods small and focused on one operation at one abstraction level. Application entry methods should expose named use-case steps. Extract a helper or collaborator when it gives a cohesive responsibility a clear name and reduces cognitive load.
+- Keep business invariants in aggregates, use-case decisions in application services and persistence/SDK details in adapters. Preserve meaningful failure paths, atomicity, response replay and business timestamps during extraction.
+- Prefer supported declarative framework capabilities for cross-cutting technical policies. Use composed annotations for reusable policies supported by the framework, with explicit semantics and verified proxy behavior. An annotation must not hide a new custom coordination engine or business workflow.
+- Avoid arbitrary line limits, one-line helper proliferation and dependency containers that disguise responsibility counts. Follow the [service method assessment](docs/service-method-assessment.md) when reviewing orchestration methods.
+
 ## Finish honestly
 
 Implement only the requested scope. Distinguish implemented behavior, test evidence and planned guarantees. Standalone simulator behavior does not prove a payment-app workflow.

@@ -16,6 +16,14 @@ Added HTTP coverage for stale replacements and merchant read isolation, phase co
 
 The RestTestClient suite uses the full Spring application through MVC and a real isolated DynamoDB table. Typed requests and responses cover defaults, complete replacement, validation, unknown sessions, cross-merchant replacement, scoped idempotency and correction after rejection. Malformed JSON is deliberately raw text. Problem responses are decoded into ProblemDetail and checked for status, code and correlation identity. Existing live-server and concurrent-request scenarios remain complementary evidence.
 
+## Concurrent replacement follow-up
+
+Real HTTP tests use MockitoSpyBean around real DynamoDB and event-store beans. Test-local CompletableFuture gates and Awaitility establish two requests with the same starting version, then release their transaction calls in a deterministic order. Matching content resolves the winning result and different content returns 409 with one replacement event.
+
+SDK-boundary failure injection proves native Spring retry success, exhaustion and exclusion of conditional failures. A separate scenario covers a winner committed between initial lookup and stream load. Lost commit responses resolve through the completed RESULT. JdkClientHttpRequestFactory exposes the first response without automatic HTTP status retries.
+
+Earlier reservation/lease scenarios were retired with REQ-IDEM-006/007. The current implementation uses conditional transactions and framework retry without an application wait queue. See the [future WireMock authorization scenarios](authorization-test-plan.md).
+
 ## Test naming convention
 
 Every JUnit test has an explicit `@DisplayName("Should {outcome} When {context}")` and matching `should{Outcome}When{Context}` method name. This covers domain, mapping, persistence, HTTP, simulator and architecture tests. Architecture checks run as named JUnit methods using ArchUnit rules. Requirement evidence follows the renamed methods.
