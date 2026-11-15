@@ -1,32 +1,29 @@
 package lab.payments.payment_session;
 
+import static com.github.tomakehurst.wiremock.client.WireMock.*;
+import static com.github.tomakehurst.wiremock.stubbing.Scenario.STARTED;
+import static lab.common.Json.sha256;
 import static org.assertj.core.api.Assertions.*;
 import static org.awaitility.Awaitility.await;
-import static com.github.tomakehurst.wiremock.client.WireMock.*;
-import static lab.common.Json.sha256;
-import static com.github.tomakehurst.wiremock.stubbing.Scenario.STARTED;
 import static org.springframework.test.web.servlet.client.RestTestClient.*;
 
 import java.time.Duration;
-import java.util.UUID;
-import java.util.Map;
 import java.util.List;
-
-import com.github.tomakehurst.wiremock.client.MappingBuilder;
-import com.github.tomakehurst.wiremock.matching.RequestPatternBuilder;
-import com.github.tomakehurst.wiremock.client.ResponseDefinitionBuilder;
-import lab.common.JsonDocumentCodec;
-import org.springframework.beans.factory.annotation.Autowired;
-
+import java.util.Map;
+import java.util.UUID;
 import java.util.concurrent.*;
 
+import com.github.tomakehurst.wiremock.client.MappingBuilder;
+import com.github.tomakehurst.wiremock.client.ResponseDefinitionBuilder;
+import com.github.tomakehurst.wiremock.matching.RequestPatternBuilder;
 import lab.common.Dynamo;
-import lab.payments.payment_session.application.*;
 import lab.payments.payment_session.entry.*;
 import org.junit.jupiter.api.*;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
+import tools.jackson.databind.ObjectMapper;
 
 class ConcurrentPurchaseReplacementTest extends PaymentSessionIntegrationTest {
     private static final String MERCHANT = "concurrent-merchant";
@@ -34,7 +31,7 @@ class ConcurrentPurchaseReplacementTest extends PaymentSessionIntegrationTest {
     @Autowired
     private Dynamo dynamo;
     @Autowired
-    private JsonDocumentCodec json;
+    private ObjectMapper json;
 
 
     @BeforeEach
@@ -59,6 +56,7 @@ class ConcurrentPurchaseReplacementTest extends PaymentSessionIntegrationTest {
             await().atMost(TEST_TIMEOUT).until(() -> scenarioHasState(scenario, "both-prepared"));
             assertThat(first).isNotDone();
             assertThat(second).isNotDone();
+            assertPreparedCommands(session);
             assertStreamVersion(session, 1);
 
             // Then
@@ -84,6 +82,9 @@ class ConcurrentPurchaseReplacementTest extends PaymentSessionIntegrationTest {
             // When
             var second = CompletableFuture.supplyAsync(() -> replace(session, key, purchase(20000)), executor);
             await().atMost(TEST_TIMEOUT).until(() -> scenarioHasState(scenario, "both-prepared"));
+            assertThat(first).isNotDone();
+            assertThat(second).isNotDone();
+            assertPreparedCommands(session);
             assertStreamVersion(session, 1);
 
             // Then
@@ -108,7 +109,8 @@ class ConcurrentPurchaseReplacementTest extends PaymentSessionIntegrationTest {
                 "M#" + MERCHANT + "#IDEMP#" + sha256("CHANGE_PURCHASE:v1:" + key))));
         var delayedLookup = wireMock.stubFor(lookup.inScenario(scenario).whenScenarioStateIs(STARTED)
                                                    .willSetStateTo("lookup-delayed")
-                                                   .willReturn(okJson(json.serialize(Map.of())).withFixedDelay(2000)));
+                                                   .willReturn(
+                                                       okJson(json.writeValueAsString(Map.of())).withFixedDelay(2000)));
         try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
             var delayed = CompletableFuture.supplyAsync(() -> replace(session, key, purchase(15000)), executor);
             await().atMost(TEST_TIMEOUT).until(() -> scenarioHasState(scenario, "lookup-delayed"));
@@ -285,7 +287,7 @@ class ConcurrentPurchaseReplacementTest extends PaymentSessionIntegrationTest {
 
     private ResponseDefinitionBuilder cancellation(String reason) {
         return aResponse().withStatus(400).withHeader("Content-Type", "application/x-amz-json-1.0")
-                          .withBody(json.serialize(
+                          .withBody(json.writeValueAsString(
                               Map.of("__type", "com.amazonaws.dynamodb.v20120810#TransactionCanceledException",
                                      "CancellationReasons",
                                      List.of(Map.of("Code", reason, "Message", "Injected transaction cancellation")))));
@@ -303,6 +305,13 @@ class ConcurrentPurchaseReplacementTest extends PaymentSessionIntegrationTest {
             .withHeader("X-Amz-Target", equalTo("DynamoDB_20120810.TransactWriteItems"))
             .withRequestBody(matchingJsonPath("$.TransactItems[0].Put.Item.PK.S", equalTo(partition(session))))
             .withRequestBody(matchingJsonPath("$.TransactItems[0].Put.Item.SK.S", equalTo("EVT#00000000000000000002")));
+    }
+
+    private void assertPreparedCommands(PaymentSessionResponse session) {
+        assertThat(wireMock.findAll(transactionRequest(session)))
+            .extracting(request -> json.readTree(request.getBodyAsString()).at("/TransactItems/0/Put/Item/data/S"))
+            .hasSize(2)
+            .doesNotHaveDuplicates();
     }
 
     private String partition(PaymentSessionResponse session) {
