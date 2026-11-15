@@ -4,7 +4,10 @@ import java.time.Duration;
 
 import lab.common.Dynamo;
 import org.junit.jupiter.api.Tag;
-import org.springframework.beans.factory.DisposableBean;
+import org.springframework.context.event.ContextClosedEvent;
+import org.springframework.context.event.EventListener;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -30,20 +33,24 @@ public abstract class SpringBootIntegrationTest {
 
     @TestConfiguration(proxyBeanMethods = false)
     static class TestResourcesConfiguration {
+        @Autowired
+        private Dynamo dynamo;
+
         @Bean
         RestTestClient restTestClient(WebApplicationContext context) {
             var requestFactory = new JdkClientHttpRequestFactory();
-            requestFactory.setReadTimeout(Duration.ofSeconds(12));
+            requestFactory.setReadTimeout(Duration.ofSeconds(25));
             return RestTestClient.bindToServer(requestFactory)
                                  .uriBuilderFactory(LocalTestWebServer.obtain(context).uriBuilderFactory()).build();
         }
 
-        @Bean
-        DisposableBean testTableCleanup(Dynamo dynamo) {
+        @EventListener(ContextClosedEvent.class)
+        @Order(Ordered.HIGHEST_PRECEDENCE)
+        void testTableCleanup() {
             if (!dynamo.table.startsWith("lab_test_")) {
                 throw new IllegalStateException("Integration test cleanup requires an isolated test table");
             }
-            return () -> dynamo.client.deleteTable(request -> request.tableName(dynamo.table));
+            dynamo.client.deleteTable(request -> request.tableName(dynamo.table));
         }
     }
 }

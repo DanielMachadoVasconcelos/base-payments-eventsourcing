@@ -61,7 +61,7 @@ Python 3.9+ is needed only for the documentation checks; the application uses Ja
 python3 scripts/check-docs.py   # local documentation links, IDs and evidence
 ```
 
-Keep Docker running. Spring Boot starts or reuses DynamoDB through the shared Compose file when an integration context starts. Integration classes share compatible cached contexts, with an isolated table per context removed when that context closes. The shared container and development tables remain available. IntelliJ users should reload the Gradle project and select the standard test task; native JUnit runs need the repository root as their working directory. There is no Testcontainers dependency. Tests express Given/When/Then behavior in JUnit; the Gherkin example is not a Cucumber test suite.
+Keep Docker running. Gradle starts the shared Compose dependency once before module tests. Spring Boot starts or reuses DynamoDB through the shared Compose file when an integration context starts. Integration classes share compatible cached contexts, with an isolated table per context removed when that context closes. The shared container and development tables remain available. IntelliJ users should reload the Gradle project and select the standard test task; native JUnit runs need the repository root as their working directory. There is no Testcontainers dependency. Tests express Given/When/Then behavior in JUnit; the Gherkin example is not a Cucumber test suite.
 
 ## Read only what you need
 

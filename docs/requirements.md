@@ -239,7 +239,7 @@ Additional session evidence: [shouldCreateASessionWithDefaultOptionalFieldsWhenO
 
 Status: Adopted
 
-Use [compose.yaml](../compose.yaml) for development and integration dependencies. The [Spring Boot test profile](../common/src/test/resources/application-integration-test.yaml) starts or reuses DynamoDB from that definition and JUnit contexts use isolated tables. No Testcontainers.
+Use [compose.yaml](../compose.yaml) for development and integration dependencies. The [Gradle configuration](../build.gradle) provisions DynamoDB once before parallel module JVMs start. The [Spring Boot test profile](../common/src/test/resources/application-integration-test.yaml) starts or reuses the same definition for native IDE runs, and JUnit contexts use isolated tables. No Testcontainers.
 
 ### REQ-ENG-002 — Domain language and framework capabilities
 
@@ -269,7 +269,7 @@ Status: Adopted
 
 Status: Adopted
 
-JUnit runs independent classes and methods concurrently, with parallelism and maximum pool size both set to two per module test JVM. [Payment test configuration](../payments-app/src/test/resources/junit-platform.properties) and [simulator test configuration](../downstream-simulator/src/test/resources/junit-platform.properties) use the same policy. The [shared integration fixture](../common/src/test/java/lab/testing/SpringBootIntegrationTest.java) allocates a UUID table and random HTTP port per cached context and deletes the table when that context closes. The [spy suite](../payments-app/src/test/java/lab/payments/payment_session/ConcurrentPurchaseReplacementTest.java) uses JUnit ResourceLock on child tests to serialize shared spy stubbing/reset while allowing unrelated tests to run concurrently.
+JUnit runs independent classes and methods concurrently, with parallelism and maximum pool size both set to two per module test JVM. [Payment test configuration](../payments-app/src/test/resources/junit-platform.properties) and [simulator test configuration](../downstream-simulator/src/test/resources/junit-platform.properties) use the same policy. The [shared integration fixture](../common/src/test/java/lab/testing/SpringBootIntegrationTest.java) allocates a UUID table and random HTTP port per cached context and deletes the table when that context closes. The [concurrency suite](../payments-app/src/test/java/lab/payments/payment_session/ConcurrentPurchaseReplacementTest.java) uses session-scoped WireMock HTTP fault rules and unique scenarios, without spies, global resets or serial-only locks. All full payment suites inherit [PaymentSessionIntegrationTest](../payments-app/src/test/java/lab/payments/payment_session/PaymentSessionIntegrationTest.java) and share its proxy/context.
 
 ### REQ-ENG-007 — Cohesive methods and declarative technical capabilities
 

@@ -10,7 +10,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.stream.IntStream;
 
 import lab.common.*;
-import lab.testing.SpringBootIntegrationTest;
 import lab.payments.payment_session.application.*;
 import lab.payments.payment_session.domain.*;
 import lab.payments.payment_session.infrastructure.PaymentSessionDocumentMapper;
@@ -19,7 +18,7 @@ import org.springframework.beans.factory.annotation.*;
 import software.amazon.awssdk.services.dynamodb.model.TransactionCanceledException;
 import tools.jackson.databind.ObjectMapper;
 
-class PaymentSessionComposeIntegrationTest extends SpringBootIntegrationTest {
+class PaymentSessionComposeIntegrationTest extends PaymentSessionIntegrationTest {
     private final HttpClient httpClient = HttpClient.newHttpClient();
     @Autowired
     private ObjectMapper objectMapper;

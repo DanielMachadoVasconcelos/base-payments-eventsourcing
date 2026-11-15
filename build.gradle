@@ -53,6 +53,8 @@ subprojects {
     }
     tasks.withType(Test).configureEach {
         useJUnitPlatform()
+        // Provision the shared dependency once before parallel module JVMs start.
+        dependsOn rootProject.tasks.named('composeUp')
         maxHeapSize = '768m'
         workingDir rootProject.projectDir
         systemProperty 'lab.compose-file', rootProject.file('compose.yaml').absolutePath

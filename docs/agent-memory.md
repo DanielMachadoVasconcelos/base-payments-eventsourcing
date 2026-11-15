@@ -15,9 +15,9 @@ A short handover, not a transcript. [Requirements](requirements.md) own scope/ev
 
 - HTTP contract tests use live-server RestTestClient with real DynamoDB and typed request/response records; raw text is used for malformed JSON. Existing live-server scenarios remain in place.
 - All JUnit tests use explicit Should ... When ... display names and matching should...When... method names, including architecture checks.
-- Tests use ArchUnit and concurrent independent methods/classes, capped at two JUnit workers per module JVM. Native ResourceLock serializes scenarios that mutate shared Mockito spies.
-- Full integration tests extend SpringBootIntegrationTest. Compatible classes reuse the context, server and UUID table; context destruction deletes that table. Spy overrides require a separate context. Keep lightweight mapper contexts separate.
-- The standard test task includes integration tests; integrationTest is an alias, not another Test task. Boot integration-test profile starts/reuses the shared Compose DynamoDB with start-only lifecycle. Docker must run; native IDE JUnit working directory must be the repository root.
+- Tests use ArchUnit and concurrent independent methods/classes, capped at two JUnit workers per module JVM. All payment integration scenarios use session-scoped WireMock HTTP fault rules, with no spies or serial-only lock.
+- Full integration tests extend SpringBootIntegrationTest. Compatible classes reuse the context, server and UUID table; context destruction deletes that table. PaymentSessionIntegrationTest adds official WireMock Boot integration to the common fixture; all three full payment suites share it. Automatic WireMock reset is disabled; use injected server instances and unique session/scenario matchers. Keep lightweight mapper contexts separate.
+- The standard test task includes integration tests; integrationTest is an alias, not another Test task. Gradle composeUp provisions the dependency once before parallel module JVMs; Boot integration-test profile starts/reuses the shared Compose DynamoDB with start-only lifecycle. Docker must run; native IDE JUnit working directory must be the repository root.
 
 ## Sharp edges
 

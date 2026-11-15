@@ -6,7 +6,6 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Stream;
 
-import lab.testing.SpringBootIntegrationTest;
 import lab.payments.payment_session.entry.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -15,7 +14,7 @@ import org.springframework.http.*;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
-class PaymentSessionHttpContractTest extends SpringBootIntegrationTest {
+class PaymentSessionHttpContractTest extends PaymentSessionIntegrationTest {
     private static final String MERCHANT = "contract-merchant";
 
     @Test
