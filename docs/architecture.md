@@ -111,7 +111,7 @@ On a same-key race, a losing writer reconciles the durable winner's response. On
 
 ## Concurrent purchase replacements
 
-PUT checks the completed idempotent result, loads the stream and asks the aggregate to change the purchase. If a winner commits between lookup and load, ChangePurchaseService rechecks the completed result before reporting a version mismatch.
+PUT describes the command through IdempotencyRequest.forPurchaseChange, resolves a StoredSessionResult and reconstructs its response once. Named application-service steps load the stream, publish the revision, apply the aggregate command and append the completion. If a winner commits between lookup and load, ChangePurchaseService rechecks the completed result before reporting a version mismatch.
 
 DynamoDbPaymentSessionRepository uses conditional TransactWriteItems to persist events, projections and the completed result atomically. On a failed transaction it reads RESULT consistently and verifies the request fingerprint. Identical content replays the winner and conflicting content produces 409.
 

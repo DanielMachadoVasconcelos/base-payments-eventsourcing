@@ -1,10 +1,23 @@
 # Service method assessment
 
-Scope: ChangePurchaseService.change. This is an assessment and a proposed refactoring direction. The current implementation remains the executable behavior reference.
+Scope: ChangePurchaseService.change. The initial assessment below motivated the implemented decomposition. Runtime behavior and persistence contracts remain the executable reference.
 
-## Findings
+## Implemented decomposition
 
-The method occupies roughly 45 lines and uses five cohesive collaborators. Formatting expands nested object construction, but its main readability cost is the mixture of use-case orchestration, idempotency representation, response reconstruction and concurrent-result recovery.
+| Method | Responsibility |
+| --- | --- |
+| ChangePurchaseService.change | Resolve a stored result or execute the replacement, then reconstruct the response once. |
+| IdempotencyRequest.forPurchaseChange | Describe the command using the existing merchant/operation/version/key scope and fingerprint representation. |
+| replacePurchase | Load the aggregate, publish the immutable revision, apply the change and complete the command. |
+| applyPurchaseChange | Supply command metadata and the explicit expiration policy to the aggregate. |
+| resolveConcurrentResult | Recheck the completed winner after a version mismatch, preserving the original failure if absent. |
+| completePurchaseChange | Map and atomically append the completed command through the existing event-store port. |
+
+The service keeps its five existing collaborators. Retry scheduling remains on the repository's native Spring annotation. Creation retains its existing operation-specific descriptor. The fingerprint factory introduces no new format or general-purpose canonicalization guarantee.
+
+## Initial findings
+
+The original public method occupied roughly 45 lines and uses five cohesive collaborators. Formatting expands nested object construction, but its main readability cost is the mixture of use-case orchestration, idempotency representation, response reconstruction and concurrent-result recovery.
 
 | Responsibility | Current ownership | Recommended treatment |
 | --- | --- | --- |
@@ -18,7 +31,7 @@ The method occupies roughly 45 lines and uses five cohesive collaborators. Forma
 
 The catch block closes a real race. Removing it to shorten the method would regress the existing concurrent lookup/load test. Moving payload publication into the session transaction would change the persistence protocol.
 
-## Proposed refactoring direction
+## Refactoring decisions
 
 1. Make the public change method express the use case at one level: describe the idempotent command, resolve a completed result or execute the replacement, then reconstruct the response.
 2. Give idempotency descriptor construction a cohesive name and ownership in the application layer. Evaluate reuse with CreatePaymentSessionService while preserving operation-specific fingerprints.
@@ -44,8 +57,8 @@ The application service coordinates ports and domain commands. Aggregates decide
 
 When reviewing a method, ask whether each dependency and branch belongs to its responsibility, whether a framework capability can replace handwritten mechanics, and whether the proposed extraction makes the contract easier to verify. Preserve observable behavior, stored formats, atomicity, response replay and business timestamps.
 
-## Verification for a later refactor
+## Verification
 
 Run existing aggregate, mapping, HTTP and concurrency tests. In particular retain same-key replay after subsequent changes, conflicting-content rejection, winner reconciliation between lookup and load, retry exhaustion and stale-version rejection.
 
-This assessment adds engineering guidance. It introduces no runtime capability or additional test coverage.
+The refactor reuses the existing test suites and adds no new runtime capability. The application service continues to coordinate the same ports, business command and persistence contract.

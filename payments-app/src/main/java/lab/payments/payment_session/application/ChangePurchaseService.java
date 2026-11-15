@@ -1,8 +1,5 @@
 package lab.payments.payment_session.application;
 
-import static lab.common.Json.fingerprint;
-
-import java.util.Map;
 import lab.common.BusinessClock;
 import lab.payments.payment_session.domain.*;
 import lombok.RequiredArgsConstructor;
@@ -18,48 +15,50 @@ public class ChangePurchaseService {
     private final SessionExpirationPolicy expirationPolicy;
 
     public PaymentSessionView change(ChangePurchaseCommand command) {
-        var context = command.context();
-        var merchantId = context.identity().merchantId();
-        var idempotency =
-                new IdempotencyRequest(
-                        new IdempotencyScope(merchantId, "CHANGE_PURCHASE", "v1"),
-                        context.idempotencyKey(),
-                        fingerprint(
-                                Map.of(
-                                        "purchase",
-                                        command.purchase(),
-                                        "expectedVersion",
-                                        context.expectedVersion())));
-        var previous = eventStore.previouslyCompletedResponse(idempotency);
-        if (previous.isPresent()) {
-            return resultMapper.fromStoredResult(previous.get(), merchantId);
-        }
+        var idempotency = IdempotencyRequest.forPurchaseChange(command);
+        var result =
+                eventStore
+                        .previouslyCompletedResponse(idempotency)
+                        .orElseGet(() -> replacePurchase(command, idempotency));
+        return resultMapper.fromStoredResult(result, idempotency.merchantId());
+    }
+
+    private StoredSessionResult replacePurchase(
+            ChangePurchaseCommand command, IdempotencyRequest idempotency) {
         var session =
                 eventStore
-                        .load(context.identity())
+                        .load(command.context().identity())
                         .orElseThrow(PaymentSessionNotFoundException::new);
-        String payloadId = purchasePayloadStore.store(merchantId, command.purchase());
-        var metadata = new CommandMetadata(CommandId.newId(), businessClock.instant());
+        var payloadId = purchasePayloadStore.store(idempotency.merchantId(), command.purchase());
+        var revision = PurchaseRevision.of(command.purchase(), payloadId);
         try {
-            session.changePurchase(
-                    new ChangeSessionPurchase(
-                            PurchaseRevision.of(command.purchase(), payloadId),
-                            context.expectedVersion(),
-                            metadata),
-                    expirationPolicy);
+            applyPurchaseChange(session, command, revision);
         } catch (PaymentSessionVersionMismatchException staleVersion) {
-            // A same-key winner may have committed between the initial lookup and stream load.
-            return eventStore
-                    .previouslyCompletedResponse(idempotency)
-                    .map(result -> resultMapper.fromStoredResult(result, merchantId))
-                    .orElseThrow(() -> staleVersion);
+            return resolveConcurrentResult(idempotency, staleVersion);
         }
-        var view = PaymentSessionView.from(session, command.purchase());
-        var persistedResult =
-                eventStore.append(
-                        session,
-                        new CompletedSessionCommand(
-                                idempotency, resultMapper.toStoredResult(view, payloadId)));
-        return resultMapper.fromStoredResult(persistedResult, merchantId);
+        return completePurchaseChange(session, command.purchase(), idempotency);
+    }
+
+    private void applyPurchaseChange(
+            PaymentSessionAggregate session,
+            ChangePurchaseCommand command,
+            PurchaseRevision revision) {
+        var metadata = new CommandMetadata(CommandId.newId(), businessClock.instant());
+        var change =
+                new ChangeSessionPurchase(revision, command.context().expectedVersion(), metadata);
+        session.changePurchase(change, expirationPolicy);
+    }
+
+    private StoredSessionResult resolveConcurrentResult(
+            IdempotencyRequest idempotency, PaymentSessionVersionMismatchException staleVersion) {
+        // A same-key winner may commit between the initial result lookup and stream load.
+        return eventStore.previouslyCompletedResponse(idempotency).orElseThrow(() -> staleVersion);
+    }
+
+    private StoredSessionResult completePurchaseChange(
+            PaymentSessionAggregate session, Purchase purchase, IdempotencyRequest idempotency) {
+        var view = PaymentSessionView.from(session, purchase);
+        var response = resultMapper.toStoredResult(view, session.purchasePayloadId());
+        return eventStore.append(session, new CompletedSessionCommand(idempotency, response));
     }
 }

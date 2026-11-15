@@ -277,7 +277,7 @@ Status: Adopted
 
 Each method expresses one cohesive operation at one abstraction level. Application services coordinate named use-case steps, aggregates own business invariants and adapters own persistence details. Prefer supported framework annotations for technical capabilities and composed annotations for reusable policies with verified semantics. Preserve meaningful concurrency/error paths when extracting methods.
 
-References: [Agent rules](../AGENTS.md), [contribution guidance](../CONTRIBUTING.md), [service method assessment](service-method-assessment.md).
+References: [Agent rules](../AGENTS.md), [contribution guidance](../CONTRIBUTING.md), [implemented service decomposition](service-method-assessment.md). ChangePurchaseService uses named cohesive steps and one final response reconstruction. IdempotencyRequest owns its operation-specific descriptor factory. REQ-IDEM-008/009 retain the behavioral evidence for concurrency and retry boundaries.
 
 ## Planned payment workflow
 
