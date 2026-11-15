@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.*;
 import static org.awaitility.Awaitility.await;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
+import static org.springframework.test.web.servlet.client.RestTestClient.*;
 
 import java.time.Duration;
 import java.util.UUID;
@@ -11,26 +12,23 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import lab.common.Dynamo;
+import lab.testing.SpringBootIntegrationTest;
 import lab.payments.payment_session.application.*;
 import lab.payments.payment_session.entry.*;
 import org.junit.jupiter.api.*;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.test.context.SpringBootTest;
+import org.junit.jupiter.api.parallel.ResourceLock;
+import org.junit.jupiter.api.parallel.ResourceLockTarget;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ProblemDetail;
-import org.springframework.http.client.JdkClientHttpRequestFactory;
-import org.springframework.test.context.*;
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
-import org.springframework.test.web.servlet.client.RestTestClient;
 import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.services.dynamodb.model.CancellationReason;
 import software.amazon.awssdk.services.dynamodb.model.TransactionCanceledException;
 
-@Tag("compose")
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-class ConcurrentPurchaseReplacementTest {
-    private static final String TABLE = "payments_concurrent_" + UUID.randomUUID().toString().replace("-", "");
+// Stubbing and Mockito resets share singleton spies only within this cached context.
+@ResourceLock(value = "payment-session-spies", target = ResourceLockTarget.CHILDREN)
+class ConcurrentPurchaseReplacementTest extends SpringBootIntegrationTest {
     private static final String MERCHANT = "concurrent-merchant";
     private static final Duration TEST_TIMEOUT = Duration.ofSeconds(8);
     @MockitoSpyBean
@@ -38,27 +36,10 @@ class ConcurrentPurchaseReplacementTest {
     @MockitoSpyBean
     private PaymentSessionEventStore eventStore;
 
-    @Value("${local.server.port}")
-    private int port;
-
-    private RestTestClient client;
 
     @BeforeEach
-    void configureClient() {
-        var requestFactory = new JdkClientHttpRequestFactory();
-        requestFactory.setReadTimeout(Duration.ofSeconds(12));
-        client = RestTestClient.bindToServer(requestFactory).baseUrl("http://localhost:" + port)
-                               .defaultHeader("X-Merchant-Id", MERCHANT).build();
-    }
-
-    @DynamicPropertySource
-    static void properties(DynamicPropertyRegistry properties) {
-        properties.add("lab.table", () -> TABLE);
-    }
-
-    @AfterAll
-    static void cleanup(@org.springframework.beans.factory.annotation.Autowired Dynamo dynamo) {
-        dynamo.client.deleteTable(request -> request.tableName(TABLE));
+    void configureMerchant() {
+        client = client.mutate().defaultHeader("X-Merchant-Id", MERCHANT).build();
     }
 
     @Test
@@ -228,36 +209,60 @@ class ConcurrentPurchaseReplacementTest {
     }
 
     private PaymentSessionResponse createSession() {
-        return client.post().uri("/v1/sessions").header("Idempotency-Key", newKey())
+        return client.post().uri("/v1/sessions")
+                     .header("Idempotency-Key", newKey())
                      .contentType(MediaType.APPLICATION_JSON)
-                     .body(new CreatePaymentSessionRequest(10000, "BRL", null, null)).exchange().expectStatus()
-                     .isCreated().expectBody(PaymentSessionResponse.class).returnResult().getResponseBody();
+                     .body(new CreatePaymentSessionRequest(10000, "BRL", null, null))
+                     .exchange()
+                     .expectStatus()
+                     .isCreated()
+                     .expectBody(PaymentSessionResponse.class)
+                     .returnResult()
+                     .getResponseBody();
     }
 
-    private RestTestClient.ResponseSpec replace(PaymentSessionResponse session,
-                                                String key,
-                                                ChangePurchaseRequest purchase) {
-        return client.put().uri("/v1/sessions/{id}", session.sessionId()).header("Idempotency-Key", key)
-                     .header(HttpHeaders.IF_MATCH, "\"1\"").contentType(MediaType.APPLICATION_JSON).body(purchase)
+    private ResponseSpec replace(PaymentSessionResponse session,
+                                 String key,
+                                 ChangePurchaseRequest purchase) {
+        return client.put().uri("/v1/sessions/{id}", session.sessionId())
+                     .header("Idempotency-Key", key)
+                     .header(HttpHeaders.IF_MATCH, "\"1\"")
+                     .contentType(MediaType.APPLICATION_JSON)
+                     .body(purchase)
                      .exchange();
     }
 
-    private PaymentSessionResponse successfulReplacement(RestTestClient.ResponseSpec response) {
-        return response.expectStatus().isOk().expectHeader().valueEquals(HttpHeaders.ETAG, "\"2\"")
-                       .expectBody(PaymentSessionResponse.class).returnResult().getResponseBody();
+    private PaymentSessionResponse successfulReplacement(ResponseSpec response) {
+        return response.expectStatus()
+                       .isOk()
+                       .expectHeader()
+                       .valueEquals(HttpHeaders.ETAG, "\"2\"")
+                       .expectBody(PaymentSessionResponse.class)
+                       .returnResult()
+                       .getResponseBody();
     }
 
-    private void assertProblem(RestTestClient.ResponseSpec response,
+    private void assertProblem(ResponseSpec response,
                                String code) {
-        var problem = response.expectStatus().isEqualTo(409).expectBody(ProblemDetail.class).returnResult()
+
+        var problem = response.expectStatus()
+                              .isEqualTo(409)
+                              .expectBody(ProblemDetail.class)
+                              .returnResult()
                               .getResponseBody();
+
         assertThat(problem).isNotNull();
         assertThat(problem.getProperties()).containsEntry("code", code);
     }
 
     private PaymentSessionResponse read(PaymentSessionResponse session) {
-        return client.get().uri("/v1/sessions/{id}", session.sessionId()).exchange().expectStatus().isOk()
-                     .expectBody(PaymentSessionResponse.class).returnResult().getResponseBody();
+        return client.get().uri("/v1/sessions/{id}", session.sessionId())
+                     .exchange()
+                     .expectStatus()
+                     .isOk()
+                     .expectBody(PaymentSessionResponse.class)
+                     .returnResult()
+                     .getResponseBody();
     }
 
     private void assertStreamVersion(PaymentSessionResponse session,
@@ -305,11 +310,14 @@ class ConcurrentPurchaseReplacementTest {
         return control;
     }
 
-    private record ConcurrentCommits(CompletableFuture<Void> firstPrepared, CompletableFuture<Void> secondPrepared,
+    private record ConcurrentCommits(CompletableFuture<Void> firstPrepared,
+                                     CompletableFuture<Void> secondPrepared,
                                      CompletableFuture<Void> resumeFirst,
                                      CompletableFuture<Void> firstCommitted) implements AutoCloseable {
         ConcurrentCommits() {
-            this(new CompletableFuture<>(), new CompletableFuture<>(), new CompletableFuture<>(),
+            this(new CompletableFuture<>(),
+                 new CompletableFuture<>(),
+                 new CompletableFuture<>(),
                  new CompletableFuture<>());
         }
 

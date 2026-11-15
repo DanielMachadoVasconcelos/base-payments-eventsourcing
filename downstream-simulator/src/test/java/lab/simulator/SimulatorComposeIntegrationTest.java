@@ -8,16 +8,11 @@ import java.util.Map;
 import java.util.UUID;
 
 import lab.common.*;
+import lab.testing.SpringBootIntegrationTest;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.*;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.*;
 
-@Tag("compose")
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-class SimulatorComposeIntegrationTest {
-    private static final String TABLE_NAME = "simulator_parameters_test_" + UUID.randomUUID().toString()
-                                                                                .replace("-", "");
+class SimulatorComposeIntegrationTest extends SpringBootIntegrationTest {
     private static final String MERCHANT_ID = "simulator-test";
     @Autowired
     private SimulatorService simulator;
@@ -26,18 +21,6 @@ class SimulatorComposeIntegrationTest {
     @Autowired
     private Dynamo dynamo;
 
-    @Value("${local.server.port}")
-    private int port;
-
-    @DynamicPropertySource
-    static void properties(DynamicPropertyRegistry properties) {
-        properties.add("lab.table", () -> TABLE_NAME);
-    }
-
-    @AfterAll
-    static void cleanup(@Autowired Dynamo dynamo) {
-        dynamo.client.deleteTable(request -> request.tableName(TABLE_NAME));
-    }
 
     @Test
     @DisplayName("Should retain exactly one effect When an operation is retried after a lost response")
@@ -64,7 +47,7 @@ class SimulatorComposeIntegrationTest {
         assertThatThrownBy(() -> simulator.execute(operation)).isInstanceOf(PaymentPersistenceFailure.class);
         assertThat(simulator.effects(MERCHANT_ID, operation.target().sessionId())).isEmpty();
         assertThatThrownBy(() -> simulator.result(operation.key())).isInstanceOf(PaymentNotFoundException.class);
-        var faultItem = dynamo.client.getItem(request -> request.tableName(TABLE_NAME).key(
+        var faultItem = dynamo.client.getItem(request -> request.tableName(dynamo.table).key(
             Dynamo.key("M#" + MERCHANT_ID + "#FAULT#" + operation.target().sessionId(), "AUTHORIZE"))).item();
         assertThat(json.deserializeObject(faultItem.get("data").s())).doesNotContainKeys("_pk", "_sk");
         simulator.execute(operation);

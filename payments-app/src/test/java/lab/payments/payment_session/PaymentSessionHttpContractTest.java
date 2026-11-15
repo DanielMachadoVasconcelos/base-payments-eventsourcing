@@ -6,42 +6,17 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Stream;
 
-import lab.common.Dynamo;
+import lab.testing.SpringBootIntegrationTest;
 import lab.payments.payment_session.entry.*;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.*;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.*;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.DynamicPropertyRegistry;
-import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.client.RestTestClient;
-import org.springframework.web.context.WebApplicationContext;
 
-@Tag("compose")
-@SpringBootTest
-class PaymentSessionHttpContractTest {
-    private static final String TABLE = "payments_http_" + UUID.randomUUID().toString().replace("-", "");
+class PaymentSessionHttpContractTest extends SpringBootIntegrationTest {
     private static final String MERCHANT = "contract-merchant";
-    private RestTestClient client;
-
-    @BeforeEach
-    void configureClient(@Autowired WebApplicationContext context) {
-        client = RestTestClient.bindToApplicationContext(context).build();
-    }
-
-    @DynamicPropertySource
-    static void properties(DynamicPropertyRegistry properties) {
-        properties.add("lab.table", () -> TABLE);
-        properties.add("lab.workers-enabled", () -> false);
-    }
-
-    @AfterAll
-    static void cleanup(@Autowired Dynamo dynamo) {
-        dynamo.client.deleteTable(request -> request.tableName(TABLE));
-    }
 
     @Test
     @DisplayName("Should create a session with default optional fields When only required purchase fields are provided")

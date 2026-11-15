@@ -239,7 +239,7 @@ Additional session evidence: [shouldCreateASessionWithDefaultOptionalFieldsWhenO
 
 Status: Adopted
 
-Use [compose.yaml](../compose.yaml) for development and integration dependencies. The [Gradle integration task](../build.gradle) starts that same definition and JUnit suites use isolated tables. No Testcontainers.
+Use [compose.yaml](../compose.yaml) for development and integration dependencies. The [Spring Boot test profile](../common/src/test/resources/application-integration-test.yaml) starts or reuses DynamoDB from that definition and JUnit contexts use isolated tables. No Testcontainers.
 
 ### REQ-ENG-002 — Domain language and framework capabilities
 
@@ -265,11 +265,11 @@ Status: Adopted
 
 [Architecture checks](../payments-app/src/test/java/lab/payments/architecture/PaymentArchitectureTest.java) enforce domain independence from Spring, AWS and outer layers, application independence from entry and persistence implementations, and entry/persistence separation. Transitive common exception dependencies remain a documented limitation.
 
-### REQ-ENG-006 — Isolated parallel test classes
+### REQ-ENG-006 — Isolated parallel tests
 
 Status: Adopted
 
-JUnit runs classes concurrently with two workers and keeps methods sequential. [Payment test configuration](../payments-app/src/test/resources/junit-platform.properties) and [simulator test configuration](../downstream-simulator/src/test/resources/junit-platform.properties) use the same policy. Integration suites allocate independent UUID table names and random HTTP ports and delete their own tables after the class completes.
+JUnit runs independent classes and methods concurrently, with parallelism and maximum pool size both set to two per module test JVM. [Payment test configuration](../payments-app/src/test/resources/junit-platform.properties) and [simulator test configuration](../downstream-simulator/src/test/resources/junit-platform.properties) use the same policy. The [shared integration fixture](../common/src/test/java/lab/testing/SpringBootIntegrationTest.java) allocates a UUID table and random HTTP port per cached context and deletes the table when that context closes. The [spy suite](../payments-app/src/test/java/lab/payments/payment_session/ConcurrentPurchaseReplacementTest.java) uses JUnit ResourceLock on child tests to serialize shared spy stubbing/reset while allowing unrelated tests to run concurrently.
 
 ### REQ-ENG-007 — Cohesive methods and declarative technical capabilities
 
@@ -354,3 +354,11 @@ Acceptance target: Add authorization/order/operation/event endpoints and an Open
 ## Non-goals for this iteration
 
 Real financial integrations, production authentication, AWS deployment, PostgreSQL migration, DynamoDB Streams and automatic financial compensation are outside this iteration. Removing the single-item payload ceiling does not promise unlimited request memory or unlimited inline metadata.
+
+### REQ-ENG-009 — Standard local test execution and reusable contexts
+
+Status: Adopted
+
+Given Docker is running, the standard Gradle test task includes full application integration tests and Spring Boot manages DynamoDB through the existing Compose file. Compatible integration classes inherit the same configuration and reuse a cached context within one test JVM. Different applications and bean overrides retain separate contexts. integrationTest is a compatibility alias of test. Native IDE JUnit runs use the repository root as their working directory.
+
+Implementation: [Gradle configuration](../build.gradle), [shared integration fixture](../common/src/test/java/lab/testing/SpringBootIntegrationTest.java), [test profile](../common/src/test/resources/application-integration-test.yaml). See [local execution guidance](../CONTRIBUTING.md) and [assessment](test-assessment.md).

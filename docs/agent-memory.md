@@ -8,14 +8,16 @@ A short handover, not a transcript. [Requirements](requirements.md) own scope/ev
 - The working slice is create/read/replace session, event replay, chunked immutable purchase storage and completed-command idempotency.
 - The simulator persists independent effects. Payments-app does not call it yet.
 - Inspect existing Spring Boot starters, Spring Framework and SDK/service capabilities before writing technical helpers. Prefer supported framework features and maintained libraries, and document any custom-code gap in the PR. See AGENTS.md and CONTRIBUTING.md.
-- Java layout follows the user-formatted ChangePurchaseService: aligned wrapped parameters and chain dots, with receiver/first call together. All 90 handwritten Java source/test files were processed with the native IntelliJ profile in config/formatting/intellij-java.xml. The profile uses a 120-column margin and .editorconfig carries matching alignment settings. Spotless only cleans imports/whitespace and does not enforce wrapping.
+- Java layout follows the user-formatted ChangePurchaseService: aligned wrapped parameters and chain dots, with receiver/first call together. Production and test Java files were processed with the native IntelliJ profile in config/formatting/intellij-java.xml. The profile uses a 120-column margin and .editorconfig carries matching alignment settings. Spotless only cleans imports/whitespace and does not enforce wrapping.
 - Keep orchestration methods small and at one abstraction level. Use named cohesive steps and supported declarative policies. ChangePurchaseService now resolves StoredSessionResult internally and maps the response once, with named replacement, aggregate-application and concurrent-result recovery steps. See docs/service-method-assessment.md.
 - Use DDD names, aggregate commands, injected JSON mapping, MapStruct, records and restrained Lombok. Follow [parameter rules](parameter-guidelines.md).
 - Compose is the only dependency definition. Shared common code is source compiled into both modules.
 
-- HTTP contract tests use MVC-backed RestTestClient with real DynamoDB and typed request/response records; raw text is used for malformed JSON. Existing live-server scenarios remain in place.
+- HTTP contract tests use live-server RestTestClient with real DynamoDB and typed request/response records; raw text is used for malformed JSON. Existing live-server scenarios remain in place.
 - All JUnit tests use explicit Should ... When ... display names and matching should...When... method names, including architecture checks.
-- Tests use ArchUnit boundary checks and two concurrent JUnit class workers, with methods sequential and isolated integration tables.
+- Tests use ArchUnit and concurrent independent methods/classes, capped at two JUnit workers per module JVM. Native ResourceLock serializes scenarios that mutate shared Mockito spies.
+- Full integration tests extend SpringBootIntegrationTest. Compatible classes reuse the context, server and UUID table; context destruction deletes that table. Spy overrides require a separate context. Keep lightweight mapper contexts separate.
+- The standard test task includes integration tests; integrationTest is an alias, not another Test task. Boot integration-test profile starts/reuses the shared Compose DynamoDB with start-only lifecycle. Docker must run; native IDE JUnit working directory must be the repository root.
 
 ## Sharp edges
 
@@ -28,7 +30,7 @@ A short handover, not a transcript. [Requirements](requirements.md) own scope/ev
 - Stale versions currently return 409; missing If-Match returns 400. Planned 412/428 are not implemented.
 - Fingerprinting is not a proven general-purpose canonical JSON implementation; do not claim equivalence for every reordered/numeric representation.
 - Domain errors avoid Spring/AWS types but inherit HTTP-status-bearing common exceptions.
-- A registered process-test task is not actual restart coverage. Prose Gherkin is not Cucumber coverage.
+- Process-restart coverage remains unimplemented. Prose Gherkin is not Cucumber coverage.
 
 ## Next boundary, not an instruction
 

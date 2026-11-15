@@ -10,11 +10,11 @@ Aggregate tests give fast feedback on domain decisions. Mapping tests protect bo
 
 ## Implemented follow-up
 
-Added HTTP coverage for stale replacements and merchant read isolation, phase comments, four ArchUnit boundary checks and concurrent test classes with sequential methods. Existing isolated tables and random ports support class concurrency. Small HTTP replacement setup is shared by scenarios. WireMock remains deferred until external application calls exist.
+Added HTTP coverage for stale replacements and merchant read isolation, phase comments, four ArchUnit boundary checks and concurrent independent test classes and methods. Context-scoped isolated tables and random ports support concurrency. Small HTTP replacement setup is shared by scenarios. WireMock remains deferred until external application calls exist.
 
 ## HTTP contract follow-up
 
-The RestTestClient suite uses the full Spring application through MVC and a real isolated DynamoDB table. Typed requests and responses cover defaults, complete replacement, validation, unknown sessions, cross-merchant replacement, scoped idempotency and correction after rejection. Malformed JSON is deliberately raw text. Problem responses are decoded into ProblemDetail and checked for status, code and correlation identity. Existing live-server and concurrent-request scenarios remain complementary evidence.
+The RestTestClient suite uses the full Spring application through a real HTTP server and an isolated DynamoDB table. Typed requests and responses cover defaults, complete replacement, validation, unknown sessions, cross-merchant replacement, scoped idempotency and correction after rejection. Malformed JSON is deliberately raw text. Problem responses are decoded into ProblemDetail and checked for status, code and correlation identity. Existing live-server and concurrent-request scenarios remain complementary evidence.
 
 ## Concurrent replacement follow-up
 
@@ -28,13 +28,21 @@ Earlier reservation/lease scenarios were retired with REQ-IDEM-006/007. The curr
 
 Every JUnit test has an explicit `@DisplayName("Should {outcome} When {context}")` and matching `should{Outcome}When{Context}` method name. This covers domain, mapping, persistence, HTTP, simulator and architecture tests. Architecture checks run as named JUnit methods using ArchUnit rules. Requirement evidence follows the renamed methods.
 
-## Further improvements
+## Local execution and context reuse
 
-1. Add Given/When/Then sections and business display names to existing scenarios. Keep compatibility tests explicit about their storage contract.
-2. Extract small purchase builders and HTTP scenario helpers when repeated setup obscures the business action. Keep aggregate commands visible in domain tests.
-3. Add architecture checks for domain independence, application ports and entry-point dependencies. Account for the existing domain dependency on common HTTP-status-bearing exceptions before choosing enforceable rules.
-4. Enable parallel test classes only after confirming each class has an independent table, port and cleanup lifecycle. Gradle project parallelism is enabled today; concurrent JUnit methods are not configured. Method-level concurrency needs a separate shared-state assessment.
-5. Introduce WireMock when payments-app actually calls an external HTTP service. Its scenarios should cover lost responses and recovery through the public API.
+The reference base-payments project centralizes common Spring test configuration in a superclass. Here, each integration class previously supplied its own DynamicPropertySource and table lifecycle, and the HTTP contract suite used a different web environment. Those differences produced distinct cache keys. The default Gradle test task also excluded the compose tag, so selecting a Compose test through that task failed with "No tests found". Several Test tasks reused the same source set, producing ambiguous IDE task choices.
+
+Full application suites now extend [SpringBootIntegrationTest](../common/src/test/java/lab/testing/SpringBootIntegrationTest.java). Ordinary payment HTTP contract and persistence classes share one live-server context. MockitoSpyBean overrides require a second payment application context. Mapping tests retain a separate lightweight Spring context; the simulator has its own application and test JVM. Native Spring caching does not span separate executions or JVMs.
+
+Each context owns its random table and cleanup. A DisposableBean deletes the table before its Dynamo client closes. Class-level cleanup would invalidate a table still used by another class sharing the cached context. HTTP clients use Boot's LocalTestWebServer URI factory and JDK transport, preserving observable first-response status codes.
+
+The standard test task runs all tests. integrationTest is a compatibility alias, and the empty processTest task was removed. Boot's integration-test profile starts or reuses DynamoDB through the existing Compose definition and leaves the shared container running. Docker must be available. Reload Gradle in IntelliJ after the task change. Native JUnit execution requires the repository root as its working directory.
+
+Independent methods and classes execute concurrently. JUnit fixed parallelism and maximum pool size are both two per module JVM; parallelism alone permits compensation threads beyond that size. Concurrent replacement scenarios mutate singleton spies, so a native ResourceLock on child tests serializes their lifecycle without blocking unrelated suites. Each scenario still sends concurrent HTTP requests.
+
+A filtered local run of PaymentSessionHttpContractTest passed all 28 executions. Temporary Gradle start/end timing callbacks confirmed overlapping executions with at most two active tests. The full method-parallel check passed 81 executions with no failures or skips. Timing callbacks recorded a maximum of two simultaneous executions in each module and one in the seven spy scenarios. No context-owned test tables remained after shutdown. These observations are local functional evidence, not a throughput benchmark or proof of process recovery.
+
+WireMock remains deferred until payments-app actually calls an external HTTP service. Its future scenarios should cover lost responses and recovery through the public API.
 
 ## Boundaries
 
